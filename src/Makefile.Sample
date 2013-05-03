@@ -1,0 +1,36 @@
+LIB_HOME:=/usr/local
+HEAD:=-I $(LIB_HOME)/include
+LIB:=-L $(LIB_HOME)/lib -lnetcdf
+CC:=gcc
+CFLAGS:= -g $(HEAD) $(LIB)
+
+#Find files containing main function
+GREPCMD:=grep -l 'int main\s*(.*)' *.c
+
+EXESOURCES:=$(shell $(GREPCMD))
+EXEOBJECTS:=$(patsubst %,c,%.o,$(EXEOBJECTS))
+ALL_BIN:=$(patsubst %.c,%,$(EXESOURCES))
+GREPCMD:=grep -L 'int main\s*(.*)' *.c
+NONEXESOURCES:=$(shell $(GREPCMD))
+NONEXEOBJECTS:=$(patsubst %.c,%.o,$(NONEXESOURCES))
+ALLSOURCE:=$(wildcard *.c)
+ALLOBJS:=$(patsubst %.c,%.o,$(SOURCE))
+#ALL_BIN:=$(patsubst %.o,%,$(OBJS))
+
+
+all:$(ALL_BIN)
+
+$(ALL_BIN):$(NONEXEOBJECTS)
+	$(CC) $(patsubst %,%.c,$@) $^ -o $@ $(CFLAGS) 
+#	$(CC) $(patsubst %,%.o,$@) $^ -o $@ $(CFLAGS) 
+%.o:%.c
+	$(CC) -c $< -o $@ $(HEAD)
+.PHONY:clean
+LSCMD= ls *.o $(ALL_BIN)
+EXISTOBJ=$(shell $(LSCMD))
+clean:
+	rm $(EXISTOBJ)
+
+
+
+
