@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <netcdf.h>
 /* Handle errors by printing an error message and exiting with a
  * non-zero status. */
@@ -13,7 +14,7 @@
 #define Y_NAME "LAT"
 #define Z_NAME "LON"
 #define X 21900
-//#define X_LIMIT 21900
+//#define X_LIMIT 100
 #define Y 94
 #define Z 192
 #define XU 1
@@ -21,10 +22,24 @@
 /*#define X 5*/
 /*#define Y 10*/
 /*#define Z 10*/
+#define OUTPUT "T_10_MOD.csv"
 int X_LIMIT=1;
+typedef struct node_t{
+   size_t idx;
+   double val;
+}node;
+int compare(const void *a,const void *b){
+   double res=(*(node*)a).val-(*(node*)b).val;
+   if(res>0) return 1;
+   if(res<0) return -1;
+   if(res==0) return 0;
+}
 int main(int argc, char ** argv){
-   sscanf(argv[1],"%d",&X_LIMIT); 
-    /* This will be the netCDF ID for the file and data variable. */
+   clock_t begin, end;
+   clock_t sort_begin,sort_end;
+   begin=clock();
+   sscanf(argv[1],"%d",&X_LIMIT);  
+   /* This will be the netCDF ID for the file and data variable. */
    int ncid, varid;
    int xid,yid,zid;
    /* Loop indexes, and error handling. */
@@ -60,6 +75,9 @@ int main(int argc, char ** argv){
    size_t start[]={0,0,0};
    size_t count[]={XU,Y,Z};
    double *data_in= (double *)malloc(sizeof(double)*XU*Y*Z);
+   node * data=(node *)malloc(sizeof(node)*X_LIMIT*Y*Z);
+   memset(data,0,sizeof(node)*X_LIMIT*Y*Z);
+     
    for(x=0;x<X_LIMIT;x+=XU){
        memset(data_in,0,sizeof(double)*XU*Y*Z);
        /* Get the varid of the data variable, based on its name. */
@@ -72,20 +90,47 @@ int main(int argc, char ** argv){
        if ((retval = nc_get_vara_double(ncid, varid,start,count, data_in)))
           ERR(retval);
         int j;
+	size_t idx;
         for(j=0;j<XU;j++)
             for (y = 0; y < Y; y++)
                 for (z = 0; z < Z; z++){
         /*            printf("%d,%d,%d,%lf\n",x,y,z,data_in[x][y][z]);*/
-                 printf("%lf,%lf,%lf,%lf\n",x_in[x+j],y_in[y],z_in[z],data_in[j*Y*Z+y*Z+z]);
+                 //printf("%lf,%lf,%lf,%lf\n",x_in[x+j],y_in[y],z_in[z],data_in[j*Y*Z+y*Z+z]);
+		  idx=(x+j)*Y*Z+y*Z+z;
+		  data[idx].idx=idx;
+		  data[idx].val=data_in[j*Y*Z+y*Z+z];
 /*                 printf("%d,%d,%d,%lf\n",x+j,y,z,data_in[j*Y*Z+y*Z+z]);*/
 
                 }
        start[0]+=XU;
    }
+   FILE * fp=fopen(argv[2],"w");
+   FILE * xfp=fopen(X_NAME,"w");
+   FILE * yfp=fopen(Y_NAME,"w");
+   FILE * zfp=fopen(Z_NAME,"w");
+
+   sort_begin=clock();
+   qsort(data,X_LIMIT*Y*Z,sizeof(node),compare);
+   sort_end=clock();
+   fwrite(data,sizeof(node),X_LIMIT*Y*Z,fp);
+   fwrite(x_in,sizeof(double),X,xfp);
+   fwrite(y_in,sizeof(double),Y,yfp);
+   fwrite(z_in,sizeof(double),Z,zfp);
+   //for(x=0;x<X_LIMIT;x++)
+     // for(y=0;y<Y;y++)
+       //  for(z=0;z<Z;z++){
+   	    //fprintf(fp,"%ld%lf",data[x*Y*Z+y*Z+z].idx,data[x*Y*Z+y*Z+z].val);
+         //    fwrite(data[x*Y*Z+y*Z+z],sizeof()) 
+	//}
    /* Close the file, freeing all resources. */
    if ((retval = nc_close(ncid)))
       ERR(retval);
-
+   fclose(fp);
+   fclose(xfp);
+   fclose(yfp);
+   fclose(zfp);
+   end=clock();
+   printf("all time is %fs and sort time is %fs\n",(double)(end-begin)/CLOCKS_PER_SEC,(double)(sort_end-sort_begin)/CLOCKS_PER_SEC);
 /*   printf("*** SUCCESS reading example file %s!\n", FILE_NAME);*/
    return 0;
 }

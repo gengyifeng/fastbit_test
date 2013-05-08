@@ -2,6 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <netcdf.h>
+#include <iostream>
+#include <set>
+using namespace std;
+
 /* Handle errors by printing an error message and exiting with a
  * non-zero status. */
 #define ERRCODE 2
@@ -13,7 +17,7 @@
 #define Y_NAME "LAT"
 #define Z_NAME "LON"
 #define X 21900
-//#define X_LIMIT 21900
+//#define X_LIMIT 2000
 #define Y 94
 #define Z 192
 #define XU 1
@@ -23,8 +27,9 @@
 /*#define Z 10*/
 int X_LIMIT=1;
 int main(int argc, char ** argv){
-   sscanf(argv[1],"%d",&X_LIMIT); 
-    /* This will be the netCDF ID for the file and data variable. */
+   sscanf(argv[1],"%d",&X_LIMIT);
+   set<double> hst; 
+   /* This will be the netCDF ID for the file and data variable. */
    int ncid, varid;
    int xid,yid,zid;
    /* Loop indexes, and error handling. */
@@ -76,7 +81,8 @@ int main(int argc, char ** argv){
             for (y = 0; y < Y; y++)
                 for (z = 0; z < Z; z++){
         /*            printf("%d,%d,%d,%lf\n",x,y,z,data_in[x][y][z]);*/
-                 printf("%lf,%lf,%lf,%lf\n",x_in[x+j],y_in[y],z_in[z],data_in[j*Y*Z+y*Z+z]);
+	//	printf("%lf,%lf,%lf,%lf\n",x_in[x+j],y_in[y],z_in[z],data_in[j*Y*Z+y*Z+z]);
+		hst.insert(data_in[j*Y*Z+y*Z+z]);
 /*                 printf("%d,%d,%d,%lf\n",x+j,y,z,data_in[j*Y*Z+y*Z+z]);*/
 
                 }
@@ -85,7 +91,7 @@ int main(int argc, char ** argv){
    /* Close the file, freeing all resources. */
    if ((retval = nc_close(ncid)))
       ERR(retval);
-
+   printf("ratio=%f\n", hst.size()*1.0/(X_LIMIT*Y*Z));
 /*   printf("*** SUCCESS reading example file %s!\n", FILE_NAME);*/
    return 0;
 }
