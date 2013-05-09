@@ -59,11 +59,9 @@ int main(int argc, char ** argv){
    if ((retval = nc_inq_varid(ncid, Z_NAME, &zid)))
       ERR(retval);
     
-   double *x_in= (double *)malloc(sizeof(double)*X);
-   memset(x_in,0,sizeof(double)*X);
-   double *y_in= (double *)malloc(sizeof(double)*Y);
-   memset(y_in,0,sizeof(double)*Y);
-   double *z_in= (double *)malloc(sizeof(double)*Z);
+   double *x_in= (double *)calloc(sizeof(double),X);
+   double *y_in= (double *)calloc(sizeof(double),Y);
+   double *z_in= (double *)calloc(sizeof(double),Z);
    memset(z_in,0,sizeof(double)*Z);
    if ((retval = nc_get_var_double(ncid, xid, x_in)))
       ERR(retval);
@@ -76,7 +74,7 @@ int main(int argc, char ** argv){
    size_t count[]={XU,Y,Z};
    double *data_in= (double *)malloc(sizeof(double)*XU*Y*Z);
    node * data=(node *)malloc(sizeof(node)*X_LIMIT*Y*Z);
-   memset(data,0,sizeof(node)*X_LIMIT*Y*Z);
+/*   memset(data,0,sizeof(node)*X_LIMIT*Y*Z);*/
      
    for(x=0;x<X_LIMIT;x+=XU){
        memset(data_in,0,sizeof(double)*XU*Y*Z);

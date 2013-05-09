@@ -44,12 +44,9 @@ int main(int argc, char ** argv){
    if ((retval = nc_inq_varid(ncid, Z_NAME, &zid)))
       ERR(retval);
     
-   double *x_in= (double *)malloc(sizeof(double)*X);
-   memset(x_in,0,sizeof(double)*X);
-   double *y_in= (double *)malloc(sizeof(double)*Y);
-   memset(y_in,0,sizeof(double)*Y);
-   double *z_in= (double *)malloc(sizeof(double)*Z);
-   memset(z_in,0,sizeof(double)*Z);
+   double *x_in= (double *)calloc(sizeof(double),X);
+   double *y_in= (double *)calloc(sizeof(double),Y);
+   double *z_in= (double *)calloc(sizeof(double),Z);
    if ((retval = nc_get_var_double(ncid, xid, x_in)))
       ERR(retval);
    if ((retval = nc_get_var_double(ncid, yid, y_in)))
