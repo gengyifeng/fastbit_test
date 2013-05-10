@@ -25,9 +25,9 @@ typedef struct result_t{
 typedef enum {BYTE, SHORT, INT, LONG,FLOAT,DOUBLE} TYPE;
 
 typedef struct dims_t{
+   TYPE* types;
    int dim_size;
    int *shape;
-   TYPE* types;
    void **dimvals;
 }DIMS;
 
@@ -35,41 +35,51 @@ void read_dim(FILE *fp,void **vals,TYPE type,size_t dim_size){
     switch(type){
         case BYTE:
             *vals=calloc(dim_size,sizeof(char));
-            fread(vals,dim_size*sizeof(char),dim_size,fp); 
+            fread(*vals,sizeof(char),dim_size,fp); 
             break;
         case SHORT:
             *vals=calloc(dim_size,sizeof(short));
-            fread(vals,dim_size*sizeof(short),dim_size,fp); 
+            fread(*vals,sizeof(short),dim_size,fp); 
             break;
         case INT:
             *vals=calloc(dim_size,sizeof(int));
-            fread(vals,dim_size*sizeof(int),dim_size,fp); 
+            fread(*vals,sizeof(int),dim_size,fp); 
             break;
         case LONG:
             *vals=calloc(dim_size,sizeof(long));
-            fread(vals,dim_size*sizeof(long),dim_size,fp); 
+            fread(*vals,sizeof(long),dim_size,fp); 
             break;
         case FLOAT:
             *vals=calloc(dim_size,sizeof(float));
-            fread(vals,dim_size*sizeof(float),dim_size,fp); 
+            fread(*vals,sizeof(float),dim_size,fp); 
             break;
         case DOUBLE:
             *vals=calloc(dim_size,sizeof(double));
-            fread(vals,dim_size*sizeof(double),dim_size,fp); 
+            fread(*vals,sizeof(double),dim_size,fp);
             break;
         defaut:
             printf("unknown type\n");
     }
 }
-
+void print_dim(void *dimvals,TYPE type,int shape){
+    int i;
+    for(i=0;i<shape;i++){
+        printf("%lf,",((double *)dimvals)[i]);
+    }
+    printf("\n");
+    
+}
 void init_dims(DIMS* dims,int dims_size,int *shape,TYPE * types,FILE ** fps){ 
    dims->dim_size=dims_size;
    dims->shape=(int *)calloc(dims_size,sizeof(int));
    dims->dimvals=(void **)calloc(dims_size,sizeof(void *));
+   dims->types=(TYPE *)calloc(dims_size,sizeof(TYPE));
    int i;
    for(i=0;i<dims_size;i++){
        dims->shape[i]=shape[i];
-       read_dim(fps[i],&dims->dimvals[i],types[i],dims_size);
+       dims->types[i]=types[i];
+       read_dim(fps[i],&(dims->dimvals[i]),types[i],shape[i]);
+/*       print_dim(dims->dimvals[i],types[i],shape[i]);*/
    }
 }
 void destory_dims(DIMS *dims){
@@ -78,6 +88,7 @@ void destory_dims(DIMS *dims){
     for(i=0;i<dims->dim_size;i++){
         free(dims->dimvals[i]);
     }
+    free(dims->types);
     free(dims->dimvals);
 }
 
@@ -86,22 +97,24 @@ void get_dshape(int *dshape,int *shape,int size){
     int tmp=1;
     dshape[0]=1;
     for(i=1;i<size;i++){
-      dshape[i]=tmp*shape[size-i];
+      dshape[i]=tmp=tmp*shape[size-i];
     } 
 }
 inline void get_idx(int *idx,size_t pos,int *dshape,int size){
    int i;
    size_t tmp=pos;
    for(i=0;i<size;i++){
-       idx[0]=pos/dshape[size-1];
-       tmp=tmp-index[0]*dshape[size-1];
+       idx[i]=tmp/dshape[size-1-i];
+       tmp=tmp-idx[i]*dshape[size-1-i];
+/*       printf("%d:%d ",dshape[size-1-i],idx[i]);*/
    }
+/*   printf("\n");*/
 }
 size_t check_index(int *index,int *shape,int size){
     int i;
-    size_t tmp=0;
+    size_t tmp=index[0];
     for(i=0;i<size-1;i++){
-       tmp+=shape[i+1]*index[i]+index[i+1]; 
+        tmp=tmp*shape[i+1]+index[i+1];
     }
     return tmp;
 }
@@ -125,11 +138,20 @@ int get_type_size(TYPE type){
     }
     return -1;
 }
-size_t get_row_size(DIMS *dims,int cols,int cols_size){
+size_t get_row_size(DIMS *dims,int *cols,int cols_size){
     int i;
     size_t size=0;
     for(i=0;i<cols_size;i++){
-        size+=get_type-size(dims->types[cols[i]]);
+        size+=get_type_size(dims->types[cols[i]]);
+    }
+}
+void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
+    int i;
+    offset[0]=0;
+    sizes[0]=get_type_size(dims->types[cols[0]]);
+    for(i=1;i<cols_size;i++){
+        sizes[i]=get_type_size(dims->types[cols[i]]);
+        offset[i]=offset[i-1]+sizes[i]; 
     }
 }
 int scan(size_t begin,size_t end,FILE *vfp,DIMS *dims,int *cols,int cols_size,FILE *ofp){ 
@@ -151,22 +173,42 @@ int scan(size_t begin,size_t end,FILE *vfp,DIMS *dims,int *cols,int cols_size,FI
     }else{
         fseek(vfp,size*begin,SEEK_SET);
         fread(data,size,end-begin+1,vfp);
-        int dshape[dims->dim_size]={};
-        int idx[dims->dim_size]={};
+        int dshape[dims->dim_size];
+        int idx[dims->dim_size];
         get_dshape(dshape,dims->shape,dims->dim_size);
+
         int j;
+        int *offsets=(int *)calloc(cols_size,sizeof(int));
+        int *typesizes=(int *)calloc(cols_size,sizeof(int));
+        get_offsets(offsets,typesizes,dims,cols,cols_size);
+        int row_size=get_row_size(dims,cols,cols_size);
         char *buf=(char *)calloc(get_row_size(dims,cols,cols_size),sizeof(char));
         for(i=0;i<end-begin+1;i++){
-            printf("before idx %d\n",data[i].idx);
+/*            printf("before idx %d\n",data[i].idx);*/
             get_idx(idx,data[i].idx,dshape,dims->dim_size); 
-            printf("after idx %d\n",check(idx,dims->shape,dims->dim_size));
+/*            printf("after idx %d\n",check_index(idx,dims->shape,dims->dim_size));*/
             for(j=0;j<cols_size;j++){
 
+                memcpy((char*)(buf+offsets[j]),(char*)dims->dimvals[cols[j]]+i*typesizes[j],typesizes[j]);
+/*                fprintf(ofp,"%lf,",(char*)dims->dimvals[cols[j]]+i*typesizes[j]);*/
+/*                fprintf(ofp,"%lf\n",((double **)dims->dimvals)[1][1]);*/
+/*                fprintf(ofp,"%lf\n",((double *)(dims->dimvals[1]))[1]);*/
+/*                fprintf(ofp,"%lf\n",((double*)(dims->dimvals[1]))[1]);*/
+
+/*                void *a=dims->dimvals[1];*/
+/*                printf("%p %lf\n",a,*(double*)a);*/
+/*                printf(a+8);*/
+/*                fprintf(ofp,"%lf\n",&((double*)(dims->dimvals[1]))[0]);*/
 /*                dims->dimvals[cols[i]]*/
 /*                dims->dimvals[i];*/
     /*            dfps[cols[j]]*/
             }
+/*            fprintf(ofp,"%lf\n",data[i].val); */
+            fwrite(buf,1,row_size,ofp);
         }
+
+        free(offsets);
+        free(typesizes);
     }
     return 0;
 }
@@ -399,6 +441,7 @@ size_t flsearch(FILE * fp,size_t size,size_t len,double val,bool equal){
 /*    printf("res %d val %lf\n",res,data[res].val);*/
     return res;
 }
+
 int fbsearch(FILE * fp,size_t size,size_t len,double min,double max,bool min_equal,bool max_equal,result * res){
    
    if( min>max||(min==max)&&(min_equal!=true||max_equal!=true)){
@@ -461,7 +504,10 @@ int main(int argc,char ** argv){
     fps[1]=fopen("LON","r");
     fps[2]=fopen("LAT","r");
     init_dims(&dims,3,shape,types,fps);
-    scan(res.begin,res.end,fp,&dims,NULL,0,ofp);
+    int cols[3]={0,1,2};
+    int cols_size=3;
+/*    scan(res.begin,res.end,fp,&dims,NULL,0,ofp);*/
+    scan(res.begin,res.end,fp,&dims,cols,cols_size,ofp);
     destory_dims(&dims);
     fclose(fp);
     fclose(ofp);
