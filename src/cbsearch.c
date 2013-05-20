@@ -14,6 +14,12 @@ typedef struct node_t{
    double val;
 }node;
 
+typedef struct cnode_t{
+   size_t idx;
+   double val;
+   unsigned char repeat;
+}cnode;
+
 typedef struct result_t{
     size_t begin;
     size_t end;
@@ -182,30 +188,34 @@ void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
     sizes[cols_size]=get_type_size(dims->var_type);
     offset[cols_size]=offset[cols_size-1]+get_type_size(dims->var_type);
 }
-int scan(size_t begin,size_t end,FILE *vfp,DIMS *dims,int *cols,int cols_size,FILE *ofp,MODE m){ 
-    if(begin>end)
+int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int cols_size,FILE *ofp,MODE m){ 
+    if(cres->begin>cres->end)
         return -1;
     size_t i;
-    int size=sizeof(node);
-    node *data=(node*)calloc(end-begin+1,sizeof(node));
-/*    for(i=begin;i<=end;i++){*/
-/*        fseek(vfp,size*i,SEEK_SET);*/
-/*        fread(data,size,1,fp);*/
-/*    }*/
+    int size=sizeof(cnode);
+    int idx_size=sizeof(size_t);
+    cnode *data=(cnode*)calloc(cres->end-cres->begin+1,sizeof(cnode));
+    size_t *idx_data=(size_t *)calloc(res->end-res->begin+1,sizeof(size_t));
+      
     struct timeval tbegin,tend;
     struct timeval wbegin, wend;
     double idxtime=0;
     double wtime=0;
      
-    fseek(vfp,size*begin,SEEK_SET);
     gettimeofday(&tbegin,NULL);
-    fread(data,size,end-begin+1,vfp);
+    fseek(vfp,size*cres->begin,SEEK_SET);
+    fread(data,size,cres->end-cres->begin+1,vfp);
+    fseek(ifp,idx_size*res->begin,SEEK_SET);
+    fread(idx_data,idx_size,res->end-res->begin+1,ifp);
     gettimeofday(&tend,NULL);
     idxtime=tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000;  
+    int k;
     if(m==TEXT){
         if(cols==NULL||cols_size==0){
-            for(i=0;i<end-begin+1;i++){
-                fprintf(ofp,"%f\n",data[i].val);
+            for(i=0;i<res->end-res->begin+1;i++){
+                for(k=0;k<data[i].repeat;k++){
+                    fprintf(ofp,"%f\n",data[i].val);
+                }
             }
         }else{
             int dshape[dims->dim_size];
@@ -220,20 +230,22 @@ int scan(size_t begin,size_t end,FILE *vfp,DIMS *dims,int *cols,int cols_size,FI
             int buf_size=row_size*10;
             char *buf=(char *)calloc(buf_size,sizeof(char));
             int buf_pos=0;
-            for(i=0;i<end-begin+1;i++){
+            for(i=0;i<cres->end-cres->begin+1;i++){
     /*            printf("before idx %d\n",data[i].idx);*/
-                get_idx(idx,data[i].idx,dshape,dims->dim_size); 
-    /*            printf("after idx %d\n",check_index(idx,dims->shape,dims->dim_size));*/
-                for(j=0;j<cols_size;j++){
-                    print_to_buf(buf+buf_pos,dims->types[cols[j]],(char *)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j]); 
-                    buf_pos=strlen(buf);
+                for(k=0;k<data[i].repeat;k++){
+                    get_idx(idx,idx_data[data[i].idx+k-res->begin],dshape,dims->dim_size); 
+        /*            printf("after idx %d\n",check_index(idx,dims->shape,dims->dim_size));*/
+                    for(j=0;j<cols_size;j++){
+                        print_to_buf(buf+buf_pos,dims->types[cols[j]],(char *)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j]); 
+                        buf_pos=strlen(buf);
+                    }
+                    print_to_buf(buf+buf_pos,dims->var_type,&(data[i].val));
+                    buf[strlen(buf)-1]='\n';
+                    
+                    fwrite(buf,1,strlen(buf),ofp);
+                    bzero(buf,buf_size);
+                    buf_pos=0;
                 }
-                print_to_buf(buf+buf_pos,dims->var_type,&(data[i].val));
-                buf[strlen(buf)-1]='\n';
-                
-                fwrite(buf,1,strlen(buf),ofp);
-                bzero(buf,buf_size);
-                buf_pos=0;
             }
             free(buf);
             free(offsets);
@@ -241,8 +253,11 @@ int scan(size_t begin,size_t end,FILE *vfp,DIMS *dims,int *cols,int cols_size,FI
         }
     }else{
         if(cols==NULL||cols_size==0){
-            for(i=0;i<end-begin+1;i++){
-                fwrite(&data,size,1,ofp);
+            int var_size=get_type_size(dims->var_type);
+            for(i=0;i<cres->end-cres->begin+1;i++){
+                for(k=0;k<data[i].repeat;k++){
+                    fwrite(&(data[i].val),var_size,1,ofp);
+                }
             }
         }else{
             int dshape[dims->dim_size];
@@ -255,10 +270,11 @@ int scan(size_t begin,size_t end,FILE *vfp,DIMS *dims,int *cols,int cols_size,FI
             int row_size=get_row_size(dims,cols,cols_size);
             char *buf=(char *)calloc(row_size+10,sizeof(char));
             gettimeofday(&wbegin,NULL);
-            for(i=0;i<end-begin+1;i++){
+            for(i=0;i<cres->end-cres->begin+1;i++){
+                for(k=0;k<data[i].repeat;k++){
     /*            printf("before idx %d\n",data[i].idx);*/
 /*                gettimeofday(&tbegin,NULL);*/
-                get_idx(idx,data[i].idx,dshape,dims->dim_size); 
+                get_idx(idx,idx_data[data[i].idx+k-res->begin],dshape,dims->dim_size); 
 /*                gettimeofday(&tend,NULL);*/
 /*                idxtime+=tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000;*/
     /*            printf("after idx %d\n",check_index(idx,dims->shape,dims->dim_size));*/
@@ -270,6 +286,7 @@ int scan(size_t begin,size_t end,FILE *vfp,DIMS *dims,int *cols,int cols_size,FI
     /*            fprintf(ofp,"%lf\n",data[i].val); */
                 memcpy((char*)(buf+offsets[j]),&(data[i].val),typesizes[j]);
                 fwrite(buf,1,row_size,ofp);
+                }
             }
             gettimeofday(&wend,NULL);
             wtime=wend.tv_sec-wbegin.tv_sec+1.0*(wend.tv_usec-wbegin.tv_usec)/1000000;
@@ -281,6 +298,7 @@ int scan(size_t begin,size_t end,FILE *vfp,DIMS *dims,int *cols,int cols_size,FI
     
     }
     free(data);
+    free(idx_data);
     return 0;
 }
 void print_res(FILE *fp){
@@ -416,16 +434,17 @@ int binary_search(const node* data,size_t len,double min,double max,bool min_equ
    return -1;
 }
 
-inline void read_from_file(FILE * fp,size_t size,size_t pos,node *data){
+inline void read_from_file(FILE * fp,size_t size,size_t pos,cnode *data){
         fseek(fp,size*pos,SEEK_SET);
         fread(data,size,1,fp);
+/*        printf("%f %d\n",data->val,data->repeat);*/
 }
 size_t frsearch(FILE * fp,size_t size,size_t len,double val,bool equal){
 /*    printf("rsearch\n");*/
     int lp=0;
     int rp=len-1;
     int mid;
-    node data;
+    cnode data;
     while(rp>lp){
         mid=lp+((rp-lp)>>1);
         read_from_file(fp,size,mid,&data);
@@ -477,7 +496,7 @@ size_t flsearch(FILE * fp,size_t size,size_t len,double val,bool equal){
     int lp=0;
     int rp=len-1;
     int mid;
-    node data;
+    cnode data;
     while(rp>lp){
         mid=lp+((rp-lp)>>1);
         read_from_file(fp,size,mid,&data);
@@ -526,17 +545,22 @@ size_t flsearch(FILE * fp,size_t size,size_t len,double val,bool equal){
     return res;
 }
 
-int fbsearch(FILE * fp,size_t size,size_t len,double min,double max,bool min_equal,bool max_equal,result * res){
+int fbsearch(FILE * fp,size_t size,size_t len,double min,double max,bool min_equal,bool max_equal,result * cres,result *res){
    
    if( min>max||(min==max)&&(min_equal!=true||max_equal!=true)){
       return -1; 
    }
    struct timeval tbegin,tend;
    gettimeofday(&tbegin,NULL);
-   res->begin=flsearch(fp,size,len,min,min_equal);
-   res->end=frsearch(fp,size,len,max,max_equal);
+   cres->begin=flsearch(fp,size,len,min,min_equal);
+   cres->end=frsearch(fp,size,len,max,max_equal);
    gettimeofday(&tend,NULL);
    if(res->begin!=-1&&res->end!=-1){
+       cnode data; 
+       read_from_file(fp,sizeof(cnode),cres->begin,&data);
+       res->begin=data.idx;
+       read_from_file(fp,sizeof(cnode),cres->end,&data);
+       res->end=data.idx+data.repeat-1;
        printf("hit number:%ld\n",res->end-res->begin+1);
 /*       printf("begin %lf %lf end %lf %lf\n",data[res->begin-1].val,data[res->begin].val,data[res->end].val,data[res->end+1].val);*/
        printf("bsearch time:%f\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000);
@@ -568,14 +592,20 @@ int main(int argc,char ** argv){
     
 /*    node* data=(node*)calloc(sizeof(node),X_LIMIT*Y*Z);*/
     FILE *fp=fopen(argv[2],"r");
+    char ifilename[128]={0};
+    sprintf(ifilename,"%s_idx",argv[2]);
+    FILE *ifp=fopen(ifilename,"r");
+
 /*    memset(data,0,sizeof(node)*X_LIMIT*Y*Z);*/
 /*    sscanf(argv[2],"%lf,%lf",&min,&max);*/
 /*    printf("%f %f\n",min,max);*/
 /*    fread(data,sizeof(node),X_LIMIT*Y*Z,fp);*/
 /*    fclose(fp);*/
-    result res;
+    result res,cres;
 /*    bsearch(data,X_LIMIT*Y*Z,min,max,min_equal,max_equal,&res);*/
-    fbsearch(fp,sizeof(node),X_LIMIT*Y*Z,min,max,min_equal,max_equal,&res);
+    fseek(fp,0,SEEK_END); 
+    size_t fsize = ftell(fp);
+    fbsearch(fp,sizeof(cnode),fsize/sizeof(cnode),min,max,min_equal,max_equal,&cres,&res);
 /*  free(data);*/
     DIMS dims;
     int shape[3]={21900,94,192};
@@ -594,13 +624,15 @@ int main(int argc,char ** argv){
         ofp=fopen(argv[4],"w");
 /*        scan(res.begin,res.end,fp,&dims,NULL,0,ofp,TEXT);*/
 /*        scan(res.begin,res.end,fp,&dims,cols,cols_size,ofp,TEXT);*/
-        scan(res.begin,res.end,fp,&dims,cols,cols_size,ofp,BINARY);
+        scan(&cres,&res,fp,ifp,&dims,cols,cols_size,ofp,BINARY);
+/*        scan(&cres,&res,fp,ifp,&dims,cols,cols_size,ofp,TEXT);*/
     }
     gettimeofday(&read_tend,NULL);
     if(argc>=5)
         fclose(ofp);
     destory_dims(&dims);
     fclose(fp);
+    fclose(ifp);
 /*    ofp=fopen(argv[4],"r");*/
 /*    print_res(ofp);*/
 /*    fclose(ofp);*/
