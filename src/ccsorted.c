@@ -4,6 +4,9 @@
 #include <time.h>
 #include <limits.h>
 #include <netcdf.h>
+#include <assert.h>
+#include <snappy-c.h>
+#include "common.h"
 /* Handle errors by printing an error message and exiting with a
  * non-zero status. */
 #define ERRCODE 2
@@ -24,16 +27,17 @@
 /*#define Y 10*/
 /*#define Z 10*/
 #define OUTPUT "T_10_MOD.csv"
+
 int X_LIMIT=1;
-typedef struct node_t{
-   size_t idx;
-   double val;
-}node;
-typedef struct cnode_t{
-   size_t idx;
-   double val;
-   unsigned char repeat;
-}cnode;
+/*typedef struct node_t{*/
+/*   size_t idx;*/
+/*   double val;*/
+/*}node;*/
+/*typedef struct cnode_t{*/
+/*   size_t idx;*/
+/*   double val;*/
+/*   unsigned char repeat;*/
+/*}cnode;*/
 int compare(const void *a,const void *b){
    double res=(*(cnode*)a).val-(*(cnode*)b).val;
    if(res>0) return 1;
@@ -65,9 +69,9 @@ int main(int argc, char ** argv){
    if ((retval = nc_inq_varid(ncid, Z_NAME, &zid)))
       ERR(retval);
     
-   double *x_in= (double *)calloc(sizeof(double),X);
-   double *y_in= (double *)calloc(sizeof(double),Y);
-   double *z_in= (double *)calloc(sizeof(double),Z);
+   double *x_in= (double *)calloc(X,sizeof(double));
+   double *y_in= (double *)calloc(Y,sizeof(double));
+   double *z_in= (double *)calloc(Z,sizeof(double));
    memset(z_in,0,sizeof(double)*Z);
    if ((retval = nc_get_var_double(ncid, xid, x_in)))
       ERR(retval);
@@ -110,9 +114,11 @@ int main(int argc, char ** argv){
    }
    FILE * fp=fopen(argv[2],"w");
    char idx_name[128]={0};
+   char idx_cidx_name[128]={0};
    sprintf(idx_name,"%s_idx",argv[2]);
-   printf("%s\n",idx_name);
+   sprintf(idx_cidx_name,"%s_idx_cidx",argv[2]);
    FILE *fp_idx=fopen(idx_name,"w");
+   FILE *fp_idx_cidx=fopen(idx_cidx_name,"w");
    FILE * xfp=fopen(X_NAME,"w");
    FILE * yfp=fopen(Y_NAME,"w");
    FILE * zfp=fopen(Z_NAME,"w");
@@ -128,7 +134,17 @@ int main(int argc, char ** argv){
    last.val=data[0].val;
    last.repeat=1;
    int linenum=1;
-   fwrite(&(data[0].idx),sizeof(size_t),1,fp_idx);
+/*   fwrite(&(data[0].idx),sizeof(size_t),1,fp_idx);*/
+   
+   int unit_count=BLOCKSIZE/sizeof(size_t);
+   int max_clength=snappy_max_compressed_length(BLOCKSIZE);
+   size_t *buff=(size_t *)calloc(unit_count,sizeof(size_t));
+   size_t *cbuff=(size_t *)calloc(max_clength,1);
+   int ucount=1;
+   size_t clen=max_clength;
+   size_t offset=0;
+   buff[0]=data[0].idx;
+   snappy_status ret;
    for(i=1;i<X_LIMIT*Y*Z;i++){
       memcpy(&tmp,&data[i],sizeof(cnode));
       if(tmp.val==last.val&&last.repeat!=UCHAR_MAX){
@@ -141,8 +157,36 @@ int main(int argc, char ** argv){
           last.repeat=1;
           linenum++;
       }
-      fwrite(&(tmp.idx),sizeof(size_t),1,fp_idx);
+      if(ucount<unit_count){
+        buff[ucount++]=tmp.idx; 
+      }else{
+        if((ret=snappy_compress((char *)buff,sizeof(size_t)*unit_count,(char *)cbuff,&clen))!=SNAPPY_OK){
+            printf("failed to compress! ret is %d\n",ret);
+        }
+        fwrite(cbuff,1,clen,fp_idx);
+        fwrite(&offset,sizeof(size_t),1,fp_idx_cidx);
+/*        printf("%ld ",offset);*/
+        offset+=clen;
+        clen=max_clength;
+        buff[0]=tmp.idx;
+        ucount=1;
+      }
+/*      fwrite(&(tmp.idx),sizeof(size_t),1,fp_idx);*/
    }
+/*   printf("\n");*/
+/*   printf("%ld %ld \n",(X_LIMIT*Y*Z)%unit_count,ucount);*/
+   assert((X_LIMIT*Y*Z)%unit_count==ucount);
+   if((ret=snappy_compress((char *)buff,sizeof(size_t)*ucount,(char *)cbuff,&clen))!=SNAPPY_OK){
+        printf("failed to compress last block! ret is %d\n",ret);
+   }
+/*   printf("%ld compressed to %ld\n",sizeof(size_t)*ucount,clen);*/
+   fwrite(cbuff,1,clen,fp_idx);
+/*   printf("%ld \n",offset);*/
+/*   printf("last len %ld\n",sizeof(size_t)*ucount);*/
+   fwrite(&offset,sizeof(size_t),1,fp_idx_cidx);
+/*   size_t new_size;*/
+/*   snappy_uncompress((char *)cbuff,clen,(char *)buff,&new_size); */
+/*   printf("%ld uncompressed to %ld\n",clen, new_size);*/
 
    printf("line number %d\n",linenum);
    fwrite(&last,sizeof(cnode),1,fp);
@@ -159,6 +203,8 @@ int main(int argc, char ** argv){
    if ((retval = nc_close(ncid)))
       ERR(retval);
    fclose(fp);
+   fclose(fp_idx);
+   fclose(fp_idx_cidx);
    fclose(xfp);
    fclose(yfp);
    fclose(zfp);

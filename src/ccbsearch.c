@@ -2,15 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <float.h>
-/*#include <time.h>*/
 #include <sys/time.h>
+#include <assert.h>
+#include <snappy-c.h>
 #include "common.h"
 /*typedef enum { false, true } bool;*/
 #define X 21900
 //#define X_LIMIT 100
 #define Y 94
 #define Z 192
-
 size_t check_index(int *index,int *shape,int size){
     int i;
     size_t tmp=index[0];
@@ -43,7 +43,6 @@ inline void print_to_buf(char *s,TYPE type,void * data){
             printf("unknown type\n");
     }
 }
-
 int get_row_size(DIMS *dims,int *cols,int cols_size){
     int i;
     int size=0;
@@ -63,7 +62,36 @@ void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
     sizes[cols_size]=get_type_size(dims->var_type);
     offset[cols_size]=offset[cols_size-1]+get_type_size(dims->var_type);
 }
-int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int cols_size,FILE *ofp,MODE m){ 
+void decompress(char *cbuff,size_t clen,char * buff,size_t *len,char*outfile){
+/*void decompress(char *cbuff,size_t clen,char*outfile){*/
+/*void decompress(char *cbuff,size_t clen,char *infile,char*outfile){*/
+/*    FILE *ifp=fopen(infile,"r");*/
+    FILE *ofp=fopen(outfile,"w");
+/*    fseek(ifp,0,SEEK_END);*/
+/*    size_t clen=ftell(ifp);*/
+/*    char *cbuff=(char *)calloc(clen,1);*/
+/*    size_t len;    */
+/*    fseek(ifp,0,SEEK_SET);*/
+/*    fread(cbuff,clen,1,ifp);*/
+    if(snappy_uncompressed_length(cbuff,clen,len)!=SNAPPY_OK){
+/*    if(snappy_uncompressed_length(cbuff,clen,&len)!=SNAPPY_OK){*/
+        printf("decompress() failed\n");
+    }
+/*    printf("len %d\n",len);*/
+/*    char *buff=(char *)calloc(len,1);*/
+/*    snappy_uncompress(cbuff,clen,buff,&len);*/
+    snappy_uncompress(cbuff,clen,buff,len);
+/*    fwrite(buff,len,1,ofp);*/
+    fwrite(buff,*len,1,ofp);
+/*    free(buff);*/
+/*    free(cbuff);*/
+/*    fclose(ifp);*/
+    fclose(ofp);
+    
+}
+
+
+int scan(result *cres,result *res,FILE *vfp,FILE *ifp, FILE *cifp,DIMS *dims,int *cols,int cols_size,FILE *ofp,MODE m){ 
     struct timeval tbegin,tend;
     struct timeval obegin, oend;
     if(cres->begin>cres->end)
@@ -74,8 +102,8 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
     gettimeofday(&tbegin,NULL);
     cnode *data=(cnode*)calloc(cres->end-cres->begin+1,sizeof(cnode));
     size_t *idx_data=(size_t *)calloc(res->end-res->begin+1,sizeof(size_t));
-    gettimeofday(&tend,NULL);
-    printf("time for read buffer is %f\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000);  
+/*    gettimeofday(&tend,NULL);*/
+/*    printf("time for read buffer is %f\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000);  */
       
     double readtime=0;
     double wtime=0;
@@ -83,8 +111,105 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
     gettimeofday(&tbegin,NULL);
     fseek(vfp,size*cres->begin,SEEK_SET);
     fread(data,size,cres->end-cres->begin+1,vfp);
-    fseek(ifp,idx_size*res->begin,SEEK_SET);
-    fread(idx_data,idx_size,res->end-res->begin+1,ifp);
+    fseek(ifp,0,SEEK_END); 
+    size_t ifsize = ftell(ifp);
+    // read data from cidx file
+    fseek(cifp,0,SEEK_END); 
+    size_t cifsize = ftell(cifp);
+    size_t cidata_size=cifsize/sizeof(size_t);
+    size_t* cidata=(size_t *)calloc(cifsize,1);
+    fseek(cifp,0,SEEK_SET);
+    fread(cidata,1,cifsize,cifp);
+/*    printf("cifp size %d\n",cifsize);*/
+/*    for(i=0;i<cifsize/sizeof(size_t);i++){*/
+/*        printf("%ld ",cidata[i]);*/
+/*    }*/
+/*    printf("\n");*/
+    size_t startBlock=res->begin*sizeof(size_t)/BLOCKSIZE;
+    size_t endBlock=res->end*sizeof(size_t)/BLOCKSIZE;
+/*    printf("startBlock %d endBlock %d\n",startBlock,endBlock); */
+    char *cbuff=(char *)calloc(BLOCKSIZE,1);
+    fseek(ifp,cidata[startBlock],SEEK_SET);
+    size_t boffset=res->begin-startBlock*BLOCKSIZE/sizeof(size_t);
+    size_t eoffset=res->end-endBlock*BLOCKSIZE/sizeof(size_t); 
+    size_t doffset=0;
+    size_t clen;
+    if(startBlock+1<cidata_size){
+        clen=cidata[startBlock+1]-cidata[startBlock];
+    }else{
+        clen=ifsize-cidata[startBlock];
+    }
+    fseek(ifp,cidata[startBlock],SEEK_SET);
+/*    fseek(ifp,0,SEEK_SET);*/
+    size_t rsize=fread(cbuff,1,clen,ifp);
+/*    printf("%ld rsize, %ld\n",clen ,rsize);*/
+/*    FILE * testfp=fopen("test100","w");*/
+/*    fwrite(cbuff,1,clen,testfp);*/
+/*    fclose(testfp);*/
+/*    FILE * testfp2=fopen("test100","r");*/
+/*    fread(cbuff,1,clen,testfp2);*/
+/*    fclose(testfp2);*/
+/*    decompress("test100","test100a");*/
+/*    decompress(cbuff,clen,"test100b");*/
+    size_t uclen=BLOCKSIZE;
+    snappy_status ret;
+    if((ret=snappy_uncompressed_length(cbuff,clen,&uclen))!=SNAPPY_OK){
+        printf("faied to get the uncompressed length! ret is %d\n",ret);
+    };
+    char *ucbuff = (char *)malloc(uclen);
+    if((ret=snappy_uncompress(cbuff,clen,ucbuff,&uclen))!=SNAPPY_OK){
+        printf("first time failed to uncompress! ret is %d\n",ret);
+    }
+/*    printf("uclen %ld \n",uclen);*/
+/*    printf("ulength %ld %ld\n",rsize,uclen);*/
+/*    printf("cidata[startBlock] %ld,%ld uncompressed to %ld\n",cidata[startBlock],clen,uclen);*/
+/*    printf("boffset %ld, eoffset %ld,startBlock %ld ,endBlock %ld\n",boffset,eoffset,startBlock,endBlock);*/
+    if(BLOCKSIZE-sizeof(size_t)*boffset<=sizeof(size_t)*(res->end-res->begin+1)){
+/*        printf("first copy %ld \n",BLOCKSIZE-sizeof(size_t)*boffset);*/
+        memcpy((char *)idx_data+doffset,ucbuff+sizeof(size_t)*boffset,BLOCKSIZE-sizeof(size_t)*boffset);
+        doffset+=BLOCKSIZE-sizeof(size_t)*boffset;
+    }else{ 
+/*        printf("first copy %ld \n",sizeof(size_t)*(res->end-res->begin+1));*/
+        memcpy((char *)idx_data+doffset,ucbuff+sizeof(size_t)*boffset,sizeof(size_t)*(res->end-res->begin+1));
+    }
+    int j;
+
+    for(j=(int)startBlock+1;j<=(int)endBlock-1;j++){
+        fread(cbuff,1,cidata[j+1]-cidata[j],ifp); 
+/*        printf("cidatasize %d\n",cidata[j+1]-cidata[j]);*/
+        if((ret=snappy_uncompress(cbuff,cidata[j+1]-cidata[j],ucbuff,&uclen))!=SNAPPY_OK){
+            printf("uncompress failed! ret is \n",ret);
+        }
+/*        printf("uclen %ld ",uclen);*/
+        assert(uclen==BLOCKSIZE);
+        memcpy((char *)idx_data+doffset,ucbuff,uclen); 
+        doffset+=uclen;
+    }
+    
+    if(endBlock>startBlock){
+        size_t lastlen;
+        if(endBlock==cifsize/sizeof(size_t)-1){
+            lastlen=ifsize-cidata[j];
+        }else{
+            lastlen=cidata[j+1]-cidata[j];
+        }
+/*        printf("%ld %ld %ld\n",cidata[j+1],cidata[j],ifsize);*/
+        fread(cbuff,1,lastlen,ifp); 
+        if((ret=snappy_uncompress(cbuff,lastlen,ucbuff,&uclen))!=SNAPPY_OK){
+            printf("last uncompress failed! ret is %d\n",ret);
+        }
+/*        printf("uclen %ld \n",uclen);*/
+/*        printf("compare %ld %ld\n",(eoffset+1)*sizeof(size_t),uclen);*/
+        memcpy((char *)idx_data+doffset,ucbuff,(eoffset+1)*sizeof(size_t)); 
+    }
+    free(cbuff);
+/*    assert(ucbuff!=NULL);*/
+    free(ucbuff);
+/*    FILE *idxfp=fopen("testidx","w");*/
+/*    fwrite(idx_data,sizeof(size_t),res->end-res->begin+1,idxfp);*/
+/*    fclose(idxfp);*/
+/*    fseek(ifp,idx_size*res->begin,SEEK_SET);*/
+/*    fread(idx_data,idx_size,res->end-res->begin+1,ifp);*/
     gettimeofday(&tend,NULL);
     readtime=tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000;  
     int k;
@@ -200,14 +325,14 @@ inline int compare(const void *a,const void *b){
    if(res==0) return 0;
 }
 
-size_t lsearch(const node* data,size_t len,double val,bool equal){
+size_t clsearch(const size_t* data,size_t len,size_t val,bool equal){
 /*    printf("lsearch\n");*/
     int lp=0;
     int rp=len-1;
     int mid;
     while(rp>lp){
         mid=lp+((rp-lp)>>1);
-        if(data[mid].val>val)
+        if(data[mid]>val)
             rp=mid;
         else
             lp=mid+1;
@@ -218,7 +343,7 @@ size_t lsearch(const node* data,size_t len,double val,bool equal){
     }
 /*    printf("rp %d val %lf\n",rp,data[rp].val);*/
     int res=-1;
-    double tmp=data[rp].val;
+    size_t tmp=data[rp];
     if(rp==len-1){
         if(equal&&tmp==val){
             return rp;
@@ -229,12 +354,12 @@ size_t lsearch(const node* data,size_t len,double val,bool equal){
     }
     int i;
     for(i=rp-1;i>=0;i--){
-        if(data[i].val<tmp){
+        if(data[i]<tmp){
 /*            printf("move %lf %lf\n",data[i].val,val);*/
-            if(equal&&data[i].val==val){
-                tmp=data[i].val;
+            if(equal&&data[i]==val){
+                tmp=data[i];
                 while(i>=0){
-                    if(data[i].val<tmp){
+                    if(data[i]<tmp){
                         return i+1;
                     }
                     i--;
@@ -248,14 +373,14 @@ size_t lsearch(const node* data,size_t len,double val,bool equal){
 /*    printf("res %d val %lf\n",res,data[res].val);*/
     return res;
 }
-size_t rsearch(const node* data,size_t len,double val,bool equal){
+size_t crsearch(const size_t* data,size_t len,size_t val,bool equal){
 /*    printf("rsearch\n");*/
     int lp=0;
     int rp=len-1;
     int mid;
     while(rp>lp){
         mid=lp+((rp-lp)>>1);
-        if(data[mid].val>val)
+        if(data[mid]>val)
             rp=mid;
         else
             lp=mid+1;
@@ -263,7 +388,7 @@ size_t rsearch(const node* data,size_t len,double val,bool equal){
     if(rp==len-1)
         return len-1;
     int res=-1;
-    double tmp=data[rp].val;
+    double tmp=data[rp];
     if(rp==0){
         if(equal&&tmp==val){
             return rp;
@@ -274,14 +399,14 @@ size_t rsearch(const node* data,size_t len,double val,bool equal){
     }
     int i;
     for(i=rp-1;i>=0;i--){
-        if(data[i].val<tmp){
-            if(data[i].val==val){
+        if(data[i]<tmp){
+            if(data[i]==val){
                if(equal){
                     return i;
                }else{
-                    tmp=data[i].val;
+                    tmp=data[i];
                     while(i>=0){
-                        if(data[i].val<tmp){
+                        if(data[i]<tmp){
                             return i;
                         }
                         i--;
@@ -294,23 +419,23 @@ size_t rsearch(const node* data,size_t len,double val,bool equal){
     }
     return res;
 }
-int binary_search(const node* data,size_t len,double min,double max,bool min_equal,bool max_equal,result * res){
-   if( min>max||(min==max)&&(min_equal!=true||max_equal!=true)){
-      return -1; 
-   }
-   struct timeval tbegin,tend;
-   gettimeofday(&tbegin,NULL);
-   res->begin=lsearch(data,len,min,min_equal);
-   res->end=rsearch(data,len,max,max_equal);
-   gettimeofday(&tend,NULL);
-   if(res->begin!=-1&&res->end!=-1){
-       printf("hit number:%ld\n",res->end-res->begin+1);
-       printf("begin %lf %lf end %lf %lf\n",data[res->begin-1].val,data[res->begin].val,data[res->end].val,data[res->end+1].val);
-       printf("binary_search time:%f\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000);
-       return 0;
-   }
-   return -1;
-}
+/*int binary_search(const node* data,size_t len,double min,double max,bool min_equal,bool max_equal,result * res){*/
+/*   if( min>max||(min==max)&&(min_equal!=true||max_equal!=true)){*/
+/*      return -1; */
+/*   }*/
+/*   struct timeval tbegin,tend;*/
+/*   gettimeofday(&tbegin,NULL);*/
+/*   res->begin=lsearch(data,len,min,min_equal);*/
+/*   res->end=rsearch(data,len,max,max_equal);*/
+/*   gettimeofday(&tend,NULL);*/
+/*   if(res->begin!=-1&&res->end!=-1){*/
+/*       printf("hit number:%ld\n",res->end-res->begin+1);*/
+/*       printf("begin %lf %lf end %lf %lf\n",data[res->begin-1].val,data[res->begin].val,data[res->end].val,data[res->end+1].val);*/
+/*       printf("binary_search time:%f\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000);*/
+/*       return 0;*/
+/*   }*/
+/*   return -1;*/
+/*}*/
 
 inline void read_from_file(FILE * fp,size_t size,size_t pos,cnode *data){
         fseek(fp,size*pos,SEEK_SET);
@@ -471,8 +596,11 @@ int main(int argc,char ** argv){
 /*    node* data=(node*)calloc(sizeof(node),X_LIMIT*Y*Z);*/
     FILE *fp=fopen(argv[2],"r");
     char ifilename[128]={0};
+    char cifilename[128]={0};
     sprintf(ifilename,"%s_idx",argv[2]);
+    sprintf(cifilename,"%s_idx_cidx",argv[2]);
     FILE *ifp=fopen(ifilename,"r");
+    FILE *cifp=fopen(cifilename,"r");
 
 /*    memset(data,0,sizeof(node)*X_LIMIT*Y*Z);*/
 /*    sscanf(argv[2],"%lf,%lf",&min,&max);*/
@@ -500,10 +628,8 @@ int main(int argc,char ** argv){
     gettimeofday(&read_tbegin,NULL);
     if(argc>=5){
         ofp=fopen(argv[4],"w");
-/*        scan(res.begin,res.end,fp,&dims,NULL,0,ofp,TEXT);*/
-/*        scan(res.begin,res.end,fp,&dims,cols,cols_size,ofp,TEXT);*/
-        scan(&cres,&res,fp,ifp,&dims,cols,cols_size,ofp,BINARY);
-/*        scan(&cres,&res,fp,ifp,&dims,cols,cols_size,ofp,TEXT);*/
+        scan(&cres,&res,fp,ifp,cifp,&dims,cols,cols_size,ofp,BINARY);
+/*        scan(&cres,&res,fp,ifp,cifp,&dims,cols,cols_size,ofp,TEXT);*/
     }
     gettimeofday(&read_tend,NULL);
     if(argc>=5)
