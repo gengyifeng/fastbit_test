@@ -10,7 +10,20 @@
 //#define X_LIMIT 100
 #define Y 94
 #define Z 192
-
+typedef struct condtion_t{
+    double *mins;
+    bool *minequal;
+    double *minmap;
+    double minsize;
+    double *maxs;
+    bool *maxequal;
+    double *maxmap;
+    double maxsize;
+}cond;
+/*void init_cond(DIMS dims,){*/
+/*    int i;*/
+/**/
+/*}*/
 size_t check_index(int *index,int *shape,int size){
     int i;
     size_t tmp=index[0];
@@ -18,6 +31,13 @@ size_t check_index(int *index,int *shape,int size){
         tmp=tmp*shape[i+1]+index[i+1];
     }
     return tmp;
+}
+size_t validate(size_t *idx,DIMS dims,cond c){
+    int i;
+    for(i=0;i<c.minsize;i++){
+/*       dims.dimvals[idx[c.minmap[i]]];*/
+        
+    }
 }
 inline void print_to_buf(char *s,TYPE type,void * data){
     switch(type){
@@ -75,7 +95,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
     cnode *data=(cnode*)calloc(cres->end-cres->begin+1,sizeof(cnode));
     size_t *idx_data=(size_t *)calloc(res->end-res->begin+1,sizeof(size_t));
     gettimeofday(&tend,NULL);
-    printf("time for read buffer is %f\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000);  
+/*    printf("time for read buffer is %f\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000);  */
       
     double readtime=0;
     double wtime=0;
@@ -161,7 +181,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
                 }
     /*            fprintf(ofp,"%lf\n",data[i].val); */
                 memcpy((char*)(buf+offsets[j]),&(data[i].val),typesizes[j]);
-                fwrite(buf,1,row_size,ofp);
+/*                fwrite(buf,1,row_size,ofp);*/
                 }
             }
             gettimeofday(&oend,NULL);

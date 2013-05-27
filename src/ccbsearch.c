@@ -173,19 +173,32 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp, FILE *cifp,DIMS *dims,int
         memcpy((char *)idx_data+doffset,ucbuff+sizeof(size_t)*boffset,sizeof(size_t)*(res->end-res->begin+1));
     }
     int j;
-
+    double rtime=0,utime=0,ctime=0;
     for(j=(int)startBlock+1;j<=(int)endBlock-1;j++){
+/*        gettimeofday(&obegin,NULL);*/
         fread(cbuff,1,cidata[j+1]-cidata[j],ifp); 
+/*        gettimeofday(&oend,NULL);*/
+/*        rtime+=oend.tv_sec-obegin.tv_sec+1.0*(oend.tv_usec-obegin.tv_usec)/1000000;*/
 /*        printf("cidatasize %d\n",cidata[j+1]-cidata[j]);*/
-        if((ret=snappy_uncompress(cbuff,cidata[j+1]-cidata[j],ucbuff,&uclen))!=SNAPPY_OK){
+/*        gettimeofday(&obegin,NULL);*/
+/*        if((ret=snappy_uncompress(cbuff,cidata[j+1]-cidata[j],ucbuff,&uclen))!=SNAPPY_OK){*/
+/*            printf("uncompress failed! ret is \n",ret);*/
+/*        }*/
+        if((ret=snappy_uncompress(cbuff,cidata[j+1]-cidata[j],(char *)idx_data+doffset,&uclen))!=SNAPPY_OK){
             printf("uncompress failed! ret is \n",ret);
         }
+/*        gettimeofday(&oend,NULL);*/
+/*        utime+=oend.tv_sec-obegin.tv_sec+1.0*(oend.tv_usec-obegin.tv_usec)/1000000;*/
 /*        printf("uclen %ld ",uclen);*/
-        assert(uclen==BLOCKSIZE);
-        memcpy((char *)idx_data+doffset,ucbuff,uclen); 
+/*        gettimeofday(&obegin,NULL);*/
+/*        assert(uclen==BLOCKSIZE);*/
+/*        memcpy((char *)idx_data+doffset,ucbuff,uclen); */
+/*        gettimeofday(&oend,NULL);*/
+/*        ctime+=oend.tv_sec-obegin.tv_sec+1.0*(oend.tv_usec-obegin.tv_usec)/1000000;*/
         doffset+=uclen;
     }
-    
+
+/*   printf("readtime %f uncompress time %f and memcpytime %f\n",rtime,utime,ctime); */
     if(endBlock>startBlock){
         size_t lastlen;
         if(endBlock==cifsize/sizeof(size_t)-1){
@@ -286,7 +299,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp, FILE *cifp,DIMS *dims,int
                 }
     /*            fprintf(ofp,"%lf\n",data[i].val); */
                 memcpy((char*)(buf+offsets[j]),&(data[i].val),typesizes[j]);
-                fwrite(buf,1,row_size,ofp);
+/*                fwrite(buf,1,row_size,ofp);*/
                 }
             }
             gettimeofday(&oend,NULL);
