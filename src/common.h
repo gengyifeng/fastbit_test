@@ -106,8 +106,21 @@ inline void get_idx(int *idx,size_t pos,int *dshape,int size){
    for(i=0;i<size;i++){
        idx[i]=tmp/dshape[size-1-i];
        tmp=tmp-idx[i]*dshape[size-1-i];
+/*     printf("%d:%d ",dshape[size-1-i],idx[i]);*/
+   }
+/*   printf("\n");*/
+}
+inline size_t get_index(int *idx,int *dshape,int size){
+   int i;
+//   size_t tmp=pos;
+   size_t tmp=idx[size-1];
+   for(i=1;i<size;i++){
+        tmp+=idx[size-1-i]*dshape[i];
+//       idx[i]=tmp/dshape[size-1-i];
+//       tmp=tmp-idx[i]*dshape[size-1-i];
 /*       printf("%d:%d ",dshape[size-1-i],idx[i]);*/
    }
+   return tmp;
 /*   printf("\n");*/
 }
 int get_type_size(TYPE type){
