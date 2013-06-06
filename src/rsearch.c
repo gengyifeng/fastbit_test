@@ -55,7 +55,7 @@ void rquery(std::set<int> &vset,double min,double max,rnode* nodes,int pos,int l
     int parent=(pos-1)/2;
     if(nodes[pos].min>max||nodes[pos].max<min)
         return; 
-/*    printf("pos %d pmin %lf pmax %lf min %lf max %lf size %d\n",pos,min,max,nodes[pos].min,nodes[pos].max,nodes[pos].size);*/
+/*    printf("pos %d level %d pmin %lf pmax %lf min %lf max %lf size %d\n",pos,level,min,max,nodes[pos].min,nodes[pos].max,nodes[pos].size);*/
     if(level==max_level){
         for(std::set<int>::iterator iter=nodes[pos].vset.begin();iter!=nodes[pos].vset.end();iter++){
             vset.insert(*iter);
