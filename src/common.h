@@ -5,6 +5,10 @@ typedef struct node_t{
    size_t idx;
    double val;
 }node;
+typedef struct bnode_t{
+   unsigned int idx;
+   double val;
+}bnode;
 
 typedef struct cnode_t{
    size_t idx;
@@ -17,14 +21,20 @@ typedef struct result_t{
     size_t end;
 }result;
 
-typedef enum {BYTE, SHORT, INT, LONG,FLOAT,DOUBLE} TYPE;
+typedef struct block_info_t{
+    double min,max;
+    size_t boffset;
+}block_info;
+
+typedef enum {BYTE, SHORT, INT, LONG,FLOAT,DOUBLE,UNKNOWN} TYPE;
 typedef enum {TEXT, BINARY} MODE;
+typedef enum {LINEAR, HCURVE} BLOCK_MODE;
 
 typedef struct dims_t{
    TYPE* types;
    TYPE var_type;
    int dim_size;
-   int *shape;
+   size_t *shape;
    void **dimvals;
 }DIMS;
 
@@ -68,9 +78,9 @@ void print_dim(void *dimvals,TYPE type,int shape){
 }
 
 
-void init_dims(DIMS* dims,int dims_size,int *shape,TYPE * types, TYPE var_type,FILE ** fps){ 
+void init_dims(DIMS* dims,int dims_size,size_t *shape,TYPE * types, TYPE var_type,FILE ** fps){ 
    dims->dim_size=dims_size;
-   dims->shape=(int *)calloc(dims_size,sizeof(int));
+   dims->shape=(size_t *)calloc(dims_size,sizeof(size_t));
    dims->dimvals=(void **)calloc(dims_size,sizeof(void *));
    dims->types=(TYPE *)calloc(dims_size,sizeof(TYPE));
    dims->var_type=var_type;
@@ -92,7 +102,7 @@ void destory_dims(DIMS *dims){
     free(dims->dimvals);
 }
 
-void get_dshape(int *dshape,int *shape,int size){
+void get_dshape(size_t *dshape,size_t *shape,int size){
     int i;
     int tmp=1;
     dshape[0]=1;
@@ -100,7 +110,7 @@ void get_dshape(int *dshape,int *shape,int size){
       dshape[i]=tmp=tmp*shape[size-i];
     } 
 }
-inline void get_idx(int *idx,size_t pos,int *dshape,int size){
+inline void get_idx(int *idx,size_t pos,size_t *dshape,int size){
    int i;
    size_t tmp=pos;
    for(i=0;i<size;i++){
@@ -110,7 +120,7 @@ inline void get_idx(int *idx,size_t pos,int *dshape,int size){
    }
 /*   printf("\n");*/
 }
-inline size_t get_index(int *idx,int *dshape,int size){
+inline size_t get_index(int *idx,size_t *dshape,int size){
    int i;
 //   size_t tmp=pos;
    size_t tmp=idx[size-1];
@@ -142,5 +152,36 @@ int get_type_size(TYPE type){
             printf("unknown type\n");
     }
     return -1;
+}
+int get_block_size(int *bound,size_t *shape,int size){
+    int len=1;
+    int i;
+    for(i=0;i<size;i++){
+        len*=shape[i]/bound[i];
+    }
+    return len;
+}
+void get_new_shape(size_t *newshape,int *bound,size_t *shape,int size){
+    int i;
+    for(i=0;i<size;i++){
+        if(shape[i]>=bound[i]){
+            newshape[i]=bound[i];
+        }else{
+            newshape[i]=shape[i];
+        }
+    }
+    
+}
+inline void get_start_count(size_t *start,size_t *count,int *newidx,size_t *newshape,int *bound,size_t *shape,int size){
+   int i,len;
+   for(i=0;i<size;i++){
+       len=shape[i]/bound[i];
+       start[i]=newidx[i]*len;
+       if(newidx[i]!=newshape[i]-1){
+           count[i]=len;
+       }else{
+           count[i]=shape[i]-(newshape[i]-1)*len;
+       }
+   }
 }
 #endif

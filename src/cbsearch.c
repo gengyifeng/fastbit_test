@@ -116,7 +116,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
                 }
             }
         }else{
-            int dshape[dims->dim_size];
+            size_t dshape[dims->dim_size];
             int idx[dims->dim_size];
             get_dshape(dshape,dims->shape,dims->dim_size);
             int *offsets=(int *)calloc(cols_size+1,sizeof(int));
@@ -158,7 +158,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
                 }
             }
         }else{
-            int dshape[dims->dim_size];
+            size_t dshape[dims->dim_size];
             int idx[dims->dim_size];
             get_dshape(dshape,dims->shape,dims->dim_size);
             int *offsets=(int *)calloc(cols_size+1,sizeof(int));
@@ -506,7 +506,7 @@ int main(int argc,char ** argv){
     fbsearch(fp,sizeof(cnode),fsize/sizeof(cnode),min,max,min_equal,max_equal,&cres,&res);
 /*  free(data);*/
     DIMS dims;
-    int shape[3]={21900,94,192};
+    size_t shape[3]={21900,94,192};
     TYPE types[3]={DOUBLE,DOUBLE,DOUBLE};
     TYPE var_type= DOUBLE;
     FILE **fps=(FILE **)calloc(3,sizeof(FILE));
