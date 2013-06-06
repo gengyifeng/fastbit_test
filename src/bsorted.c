@@ -4,6 +4,7 @@
 #include <time.h>
 #include <netcdf.h>
 #include "common.h"
+#include "rsearch.h"
 /* Handle errors by printing an error message and exiting with a
  * non-zero status. */
 #define ERRCODE 2
@@ -223,11 +224,15 @@ int main(int argc, char ** argv){
    sprintf(idx_name,"%s_bidx",argv[2]);
    printf("%s\n",idx_name);
    FILE *fp_idx=fopen(idx_name,"w");
+   sprintf(idx_name,"%s_tidx",argv[2]);
+   printf("%s\n",idx_name);
+   FILE *fp_tidx=fopen(idx_name,"w");
    sprintf(idx_name,"%s_meta",argv[2]);
    printf("%s\n",idx_name);
    FILE *fp_meta=fopen(idx_name,"w");
    sprintf(idx_name,"%s_binfo",argv[2]);
    printf("%s\n",idx_name);
+
    FILE *fp_binfo=fopen(idx_name,"w");
    FILE **dfp=(FILE **)calloc(dims_size,sizeof(FILE *));
    fprintf(fp_meta,"Dimension size=%d\n",dims_size);
@@ -242,6 +247,9 @@ int main(int argc, char ** argv){
    fprintf(fp_meta,"Block Arrangement=linear\n");
    size_t boffset=0;
    block_info *binfo=(block_info *)calloc(block_num,sizeof(block_info));
+/*   int max_level=get_max_level(block_num);*/
+/*   int vnodes_size=get_tree_size(block_num);*/
+   vnode *vnodes=(vnode *)calloc(block_num,sizeof(vnode));
    double *vals=(double *)calloc(block_size,sizeof(double));
    unsigned int *idxs =(unsigned int *)calloc(block_size,sizeof(unsigned int));
 
@@ -274,11 +282,16 @@ int main(int argc, char ** argv){
        binfo[i].boffset=boffset;
        binfo[i].min=data[0].val;
        binfo[i].max=data[count_size-1].val;
+       vnodes[i].min=data[0].val;
+       vnodes[i].max=data[count_size-1].val;
+       vnodes[i].val=i;
 /*       fwrite(&boffset,sizeof(size_t),1,fp_boffset);*/
        fwrite(idxs,sizeof(unsigned int),count_size,fp_idx);
        fwrite(vals,sizeof(double),count_size,fp);
        boffset+=count_size;
    }
+/*   fwrite(&max_level,sizeof(int),1,fp_tidx);*/
+   fwrite(vnodes,sizeof(vnode),block_num,fp_tidx);
    fwrite(binfo,sizeof(block_info),block_num,fp_binfo);
    
    for(i=0;i<dims_size;i++){
@@ -288,6 +301,8 @@ int main(int argc, char ** argv){
       ERR(retval);
    fclose(fp);
    fclose(fp_binfo);
+   fclose(fp_idx);
+   fclose(fp_tidx);
    fclose(fp_meta);
    for(i=0;i<dims_size;i++){
        fclose(dfp[i]);
