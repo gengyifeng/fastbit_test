@@ -519,7 +519,7 @@ int main(int argc,char ** argv){
     struct timeval read_tbegin,read_tend;
     gettimeofday(&tbegin,NULL);
     int X_LIMIT;
-    sscanf(argv[1],"%d",&X_LIMIT);
+/*    sscanf(argv[1],"%d",&X_LIMIT);*/
     double min=DBL_MIN;
     double max=DBL_MAX;
     bool min_equal=true;
@@ -527,28 +527,28 @@ int main(int argc,char ** argv){
     
     char lb,rb;
 /*    printf("%s\n",argv[2]);*/
-    sscanf(argv[3],"%c%lf,%lf%c",&lb,&min,&max,&rb);
+    sscanf(argv[2],"%c%lf,%lf%c",&lb,&min,&max,&rb);
     if(lb=='('){
         min_equal=false;
     }
     if(rb==')'){
         max_equal=false;
     }
-    printf("max %lf min %lf\n",max,min);
+    printf("min %lf max %lf\n",min,max);
     
 
 /*    node* data=(node*)calloc(sizeof(node),X_LIMIT*Y*Z);*/
 
-    FILE *fp=fopen(argv[2],"r");
+    FILE *fp=fopen(argv[1],"r");
     char ifilename[128]={0};
-    sprintf(ifilename,"%s_bidx",argv[2]);
+    sprintf(ifilename,"%s_bidx",argv[1]);
     FILE *ifp=fopen(ifilename,"r");
-    sprintf(ifilename,"%s_meta",argv[2]);
+    sprintf(ifilename,"%s_meta",argv[1]);
     FILE *mfp=fopen(ifilename,"r");
-    sprintf(ifilename,"%s_binfo",argv[2]);
+    sprintf(ifilename,"%s_binfo",argv[1]);
     FILE *bfp=fopen(ifilename,"r");
    
-    /* parse the binfo file start!*/ 
+    /* parse the bmeta file start!*/ 
     int i;
     char line[512]={0};
     int dims_size;
@@ -556,7 +556,7 @@ int main(int argc,char ** argv){
     sscanf(line,"Dimension size=%d",&dims_size);
     char varname[128]={0};
     char vtypename[128]={0};
-    char tempname[16]={0};
+    char tempname[128]={0};
     char **dnames=(char **)calloc(dims_size,sizeof(char *));
     size_t *shape=(size_t *)calloc(dims_size,sizeof(size_t *));
     int *bound=(int *)calloc(dims_size,sizeof(int *));
@@ -567,7 +567,9 @@ int main(int argc,char ** argv){
         memset(line,0,sizeof(line));
         fgets(line,sizeof(line),mfp);
         dnames[i]=(char *)calloc(128,sizeof(char *));
-        sscanf(line,"%s\t%s\t%d\t%d",&dnames[i],&types[i],&shape[i],&bound[i]);
+        sscanf(line,"%s\t%s\t%d\t%d",dnames[i],tempname,&shape[i],&bound[i]);
+        types[i]=get_type(tempname);
+        memset(tempname,0,128);
     }
     fgets(line,sizeof(line),mfp);
     memset(line,0,sizeof(line));
@@ -583,7 +585,7 @@ int main(int argc,char ** argv){
     }else if(!strcmp(tempname,"hcurve")){
         bmode=HCURVE;
     }
-    /* parse the binfo file end!*/ 
+    /* parse the bmeta file end!*/ 
 
     size_t *newshape = (size_t *)calloc(dims_size,sizeof(size_t));
     size_t *newdshape = (size_t *)calloc(dims_size,sizeof(size_t));
@@ -595,8 +597,8 @@ int main(int argc,char ** argv){
         block_num*=newshape[i];
         all_size*=shape[i];
     }
-    int block_size=get_block_size(bound,shape,dims_size);
-    printf("block_size %d\n",block_size);
+    int block_size=get_max_block_size(bound,shape,dims_size);
+/*    printf("block_size %d\n",block_size);*/
     double *buff=(double *)calloc(block_size,sizeof(double)); 
     block_info *binfo=(block_info*)calloc(block_num,sizeof(block_info));
     fread(binfo,sizeof(block_info),block_num,bfp);
@@ -611,7 +613,7 @@ int main(int argc,char ** argv){
         vns[i].min=binfo[i].min;
         vns[i].max=binfo[i].max;
         vns[i].val=i;
-/*        printf("block_id %d min %lf max %lf\n",i,binfo[i].min,binfo[i].max);*/
+        printf("block_id %d min %lf max %lf\n",i,binfo[i].min,binfo[i].max);
     }  
 /*    int max_level=get_max_level(100*block_num);*/
     int max_level=10;
@@ -689,8 +691,8 @@ int main(int argc,char ** argv){
 /*    int cols_size=3;*/
     FILE *ofp;
     gettimeofday(&read_tbegin,NULL);
-    if(argc>=5){
-        ofp=fopen(argv[4],"w");
+    if(argc>=4){
+        ofp=fopen(argv[3],"w");
 /*        scan(res.begin,res.end,fp,&dims,NULL,0,ofp,TEXT);*/
 /*        scan(res.begin,res.end,fp,&dims,cols,cols_size,ofp,TEXT);*/
 /*        scan(&cres,&res,fp,ifp,&dims,cols,cols_size,ofp,BINARY);*/

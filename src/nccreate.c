@@ -134,6 +134,16 @@ void init_dimvar(void *data,size_t len,TYPE type){
        getval(((char *)data+i*size),i,type);
    }
 }
+
+inline void init_var_locality(void *data,size_t len,size_t offset,TYPE type){
+   size_t i;
+   int size=get_type_size(type);
+   for(i=0;i<len;i++){
+/*       random(((char *)data+i*size),min,max,type);*/
+       getval(((char *)data+i*size),i+offset,type);
+/*       *(double *)data=i;*/
+   }
+}
 inline void init_var(void *data,size_t len,double min, double max,TYPE type){
    size_t i;
    int size=get_type_size(type);
@@ -160,7 +170,7 @@ int generator(const char* fname,char *dimnames[],char *varname,int * shapes,int 
         total_size*=shapes[i];
     }
     double min=0;
-    double max=coverage*total_size;
+    double max=coverage;
 /*    TYPE types[3]={DOUBLE,DOUBLE,DOUBLE};*/
     if((res=nc_create(fname,NC_CLOBBER|NC_64BIT_OFFSET,&ncid)))
         BAIL(res);
@@ -199,20 +209,21 @@ int generator(const char* fname,char *dimnames[],char *varname,int * shapes,int 
     }
     size_t *start=(size_t *)calloc(dim_size,sizeof(size_t));
     size_t *count=(size_t *)calloc(dim_size,sizeof(size_t));
+/*    size_t *countdshape=(size_t *)calloc(dims_size,sizeof(size_t));*/
     size_t ustart[1]={0};
     size_t ucount[1]={1};
     for(i=1;i<dim_size;i++){ 
         count[i]=shapes[i];
     }
     count[0]=1;
-    
+/*    getdshape(countdshape,count,dims_size);*/
     for(i=0;i<shapes[0];i++){
         start[0]=i;
         ustart[0]=i;
-        init_dimvar(udata,i,var_type);
         getval(((char *)udata),i,types[0]);
         nc_put_vara(types[0],ncid,dimids[0],ustart,ucount,udata);
         init_var(buffer,total_size/shapes[0],min,max,var_type);
+/*        init_var_locality(buffer,total_size/shapes[0],i*(total_size/shapes[0]),var_type);*/
         nc_put_vara(var_type,ncid,vlid,start,count,buffer);
     }
     if((res=nc_close(ncid)))
@@ -220,7 +231,7 @@ int generator(const char* fname,char *dimnames[],char *varname,int * shapes,int 
     return 0;
 }
 int main(int argc,char *argv[]){
-    int shapes[3]={10,8,6};
+    int shapes[3]={60,120,240};
     TYPE var_type=DOUBLE;
     TYPE types[3]={DOUBLE,DOUBLE,DOUBLE};
     int dim_size=3;

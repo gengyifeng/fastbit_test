@@ -12,16 +12,9 @@
 /*#define FILE_NAME "/media/Soft/t_10.db.1948-2007.daymean.05APR2010.nc"*/
 #define FILE_NAME "t_10.db.1948-2007.daymean.05APR2010.nc"
 #define VAR_NAME "T_10_MOD"
-/*#define X 21900*/
-//#define X_LIMIT 100
-#define XU 1
+/*#define XU 1*/
 
-/*typedef struct block_info_t{*/
-/*    double min,max;*/
-/*    size_t boffset;*/
-/*}block_info;*/
 
-int X_LIMIT=1;
 char *get_type_name(nc_type type){
     switch(type){
         case NC_BYTE:
@@ -97,59 +90,59 @@ void nbound(int *bound,int n,int size){
 /*   }*/
 /*}*/
 
-int nc_get_vara(int ncid, int varid, size_t *start, size_t *count, void* buff,nc_type type){
-    int retval=-1; 
-    switch(type){
-        case NC_BYTE:
-            retval=nc_get_vara_uchar(ncid,varid,start,count,(unsigned char *)buff);
-            break;
-        case NC_SHORT:
-            retval=nc_get_vara_short(ncid,varid,start,count,(short  *)buff);
-            break;
-        case NC_INT:
-            retval=nc_get_vara_int(ncid,varid,start,count,(int  *)buff);
-            break;
-/*        case NC_INT64:*/
-/*            retval=nc_get_vara_long(ncid,varid,start,count,(long  *)buff);*/
+/*int nc_get_vara(int ncid, int varid, size_t *start, size_t *count, void* buff,nc_type type){*/
+/*    int retval=-1; */
+/*    switch(type){*/
+/*        case NC_BYTE:*/
+/*            retval=nc_get_vara_uchar(ncid,varid,start,count,(unsigned char *)buff);*/
 /*            break;*/
-        case NC_FLOAT:
-            retval=nc_get_vara_float(ncid,varid,start,count,(float  *)buff);
-            break;
-        case NC_DOUBLE:
-            retval=nc_get_vara_double(ncid,varid,start,count,(double  *)buff);
-            break;
-        default:
-            printf("nc_get_vara() unknown type!\n");
-    }
-    return retval;
-
-    }
-int nc_get_var(int ncid,int varid,void *buff,nc_type type){
-    int retval=-1; 
-    switch(type){
-        case NC_BYTE:
-            retval=nc_get_var_uchar(ncid,varid,(unsigned char *)buff);
-            break;
-        case NC_SHORT:
-            retval=nc_get_var_short(ncid,varid,(short  *)buff);
-            break;
-        case NC_INT:
-            retval=nc_get_var_int(ncid,varid,(int  *)buff);
-            break;
-/*        case NC_INT64:*/
-/*            retval=nc_get_var_long(ncid,varid,(long  *)buff);*/
+/*        case NC_SHORT:*/
+/*            retval=nc_get_vara_short(ncid,varid,start,count,(short  *)buff);*/
 /*            break;*/
-        case NC_FLOAT:
-            retval=nc_get_var_float(ncid,varid,(float  *)buff);
-            break;
-        case NC_DOUBLE:
-            retval=nc_get_var_double(ncid,varid,(double  *)buff);
-            break;
-        default:
-            printf("nc_get_var() unknown type!\n");
-    }
-    return retval;
-}
+/*        case NC_INT:*/
+/*            retval=nc_get_vara_int(ncid,varid,start,count,(int  *)buff);*/
+/*            break;*/
+/*|+        case NC_INT64:+|*/
+/*|+            retval=nc_get_vara_long(ncid,varid,start,count,(long  *)buff);+|*/
+/*|+            break;+|*/
+/*        case NC_FLOAT:*/
+/*            retval=nc_get_vara_float(ncid,varid,start,count,(float  *)buff);*/
+/*            break;*/
+/*        case NC_DOUBLE:*/
+/*            retval=nc_get_vara_double(ncid,varid,start,count,(double  *)buff);*/
+/*            break;*/
+/*        default:*/
+/*            printf("nc_get_vara() unknown type!\n");*/
+/*    }*/
+/*    return retval;*/
+/**/
+/*    }*/
+/*int nc_get_var(int ncid,int varid,void *buff,nc_type type){*/
+/*    int retval=-1; */
+/*    switch(type){*/
+/*        case NC_BYTE:*/
+/*            retval=nc_get_var_uchar(ncid,varid,(unsigned char *)buff);*/
+/*            break;*/
+/*        case NC_SHORT:*/
+/*            retval=nc_get_var_short(ncid,varid,(short  *)buff);*/
+/*            break;*/
+/*        case NC_INT:*/
+/*            retval=nc_get_var_int(ncid,varid,(int  *)buff);*/
+/*            break;*/
+/*|+        case NC_INT64:+|*/
+/*|+            retval=nc_get_var_long(ncid,varid,(long  *)buff);+|*/
+/*|+            break;+|*/
+/*        case NC_FLOAT:*/
+/*            retval=nc_get_var_float(ncid,varid,(float  *)buff);*/
+/*            break;*/
+/*        case NC_DOUBLE:*/
+/*            retval=nc_get_var_double(ncid,varid,(double  *)buff);*/
+/*            break;*/
+/*        default:*/
+/*            printf("nc_get_var() unknown type!\n");*/
+/*    }*/
+/*    return retval;*/
+/*}*/
 int bcompare(const void *a,const void *b){
    double res=(*(bnode*)a).val-(*(bnode*)b).val;
    if(res>0) return 1;
@@ -160,16 +153,21 @@ int main(int argc, char ** argv){
    clock_t begin, end;
    clock_t sort_begin,sort_end;
    begin=clock();
-   sscanf(argv[1],"%d",&X_LIMIT);  
+   if(argc!=5){
+       printf("Usage:%s netcdf_file var_name bound indexing_file\n",argv[0]);
+       exit(1);
+   }
    /* This will be the netCDF ID for the file and data variable. */
    int ncid, varid;
    int retval;
    /* Open the file. NC_NOWRITE tells netCDF we want read-only access
     * to the file.*/
-   if ((retval = nc_open(FILE_NAME,NC_NOWRITE, &ncid)))
+/*   if ((retval = nc_open(FILE_NAME,NC_NOWRITE, &ncid)))*/
+/*      ERR(retval);*/
+   if ((retval = nc_open(argv[1],NC_NOWRITE, &ncid)))
       ERR(retval);
     
-   if ((retval = nc_inq_varid(ncid, VAR_NAME, &varid)))
+   if ((retval = nc_inq_varid(ncid, argv[2], &varid)))
       ERR(retval);
    nc_type vtype;
    int dims_size,nattsp;
@@ -199,7 +197,8 @@ int main(int argc, char ** argv){
        nc_get_var(ncid, dimids[i], dims_in[i],dtypes[i]);
    }
 
-   int n=8;
+   int n;
+   sscanf(argv[3],"%d",&n);
    size_t *start=(size_t*)calloc(dims_size,sizeof(size_t));
    size_t *count=(size_t*)calloc(dims_size,sizeof(size_t));
    size_t  *countdshape=(size_t *)calloc(dims_size,sizeof(size_t));
@@ -210,7 +209,7 @@ int main(int argc, char ** argv){
    nbound(bound,n,dims_size);
    get_new_shape(newshape,bound,dsizes,dims_size);
    get_dshape(newdshape,newshape,dims_size);
-   int block_size=get_block_size(bound,dsizes,dims_size);
+   int block_size=get_max_block_size(bound,dsizes,dims_size);
    int vsize=get_size(vtype);
    double * buff=(double *)calloc(block_size,vsize);
    bnode *data=(bnode *)calloc(block_size,sizeof(bnode));
@@ -219,18 +218,18 @@ int main(int argc, char ** argv){
        block_num*=newshape[i];
    }
 
-   FILE * fp=fopen(argv[2],"w");
+   FILE * fp=fopen(argv[4],"w");
    char idx_name[128]={0};
-   sprintf(idx_name,"%s_bidx",argv[2]);
+   sprintf(idx_name,"%s_bidx",argv[4]);
    printf("%s\n",idx_name);
    FILE *fp_idx=fopen(idx_name,"w");
-   sprintf(idx_name,"%s_tidx",argv[2]);
+   sprintf(idx_name,"%s_tidx",argv[4]);
    printf("%s\n",idx_name);
    FILE *fp_tidx=fopen(idx_name,"w");
-   sprintf(idx_name,"%s_meta",argv[2]);
+   sprintf(idx_name,"%s_meta",argv[4]);
    printf("%s\n",idx_name);
    FILE *fp_meta=fopen(idx_name,"w");
-   sprintf(idx_name,"%s_binfo",argv[2]);
+   sprintf(idx_name,"%s_binfo",argv[4]);
    printf("%s\n",idx_name);
 
    FILE *fp_binfo=fopen(idx_name,"w");
@@ -264,7 +263,7 @@ int main(int argc, char ** argv){
 /*           printf("start[%d]=%d\n",j,start[j]);*/
 /*           printf("count[%d]=%d\n",j,count[j]);*/
        }
-       printf("count_size %d\n",count_size);
+/*       printf("count_size %d\n",count_size);*/
        if ((retval = nc_get_vara(ncid, varid,start,count,buff,vtype)))
           ERR(retval);
 /*       get_dshape(countdshape,count,dims_size);*/
@@ -278,10 +277,10 @@ int main(int argc, char ** argv){
             idxs[j]=data[j].idx;
             vals[j]=data[j].val; 
        }
-       printf("boffset %d count_size %d\n",boffset, count_size);
        binfo[i].boffset=boffset;
        binfo[i].min=data[0].val;
        binfo[i].max=data[count_size-1].val;
+       printf("boffset %d count_size %d block min %lf, max %lf\n",boffset, count_size,binfo[i].min,binfo[i].max);
        vnodes[i].min=data[0].val;
        vnodes[i].max=data[count_size-1].val;
        vnodes[i].val=i;

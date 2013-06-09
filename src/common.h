@@ -1,6 +1,7 @@
 #ifndef _COMMON_H
 #define _COMMON_H
 #define BLOCKSIZE 33554432 //32*1024*1024
+#include <netcdf.h>
 typedef struct node_t{
    size_t idx;
    double val;
@@ -161,6 +162,15 @@ int get_block_size(int *bound,size_t *shape,int size){
     }
     return len;
 }
+int get_max_block_size(int *bound,size_t *shape,int size){
+    int len=1;
+    int i;
+    for(i=0;i<size;i++){
+        len*=shape[i]-(shape[i]/bound[i])*(bound[i]-1);
+    }
+//    printf("max_block_size %d\n",len);
+    return len;
+}
 void get_new_shape(size_t *newshape,int *bound,size_t *shape,int size){
     int i;
     for(i=0;i<size;i++){
@@ -180,8 +190,64 @@ inline void get_start_count(size_t *start,size_t *count,int *newidx,size_t *news
        if(newidx[i]!=newshape[i]-1){
            count[i]=len;
        }else{
-           count[i]=shape[i]-(newshape[i]-1)*len;
+           count[i]=shape[i]-newidx[i]*len;
+//           printf("shape[i] %d newshape[i] %d newidx[i] %d len %d\n",shape[i],newshape[i],newidx[i],len);
        }
+//       printf("len %d count[i] %d\n",len,count[i]);
    }
+}
+
+int nc_get_vara(int ncid, int varid, size_t *start, size_t *count, void* buff,nc_type type){
+    int retval=-1; 
+    switch(type){
+        case NC_BYTE:
+            retval=nc_get_vara_uchar(ncid,varid,start,count,(unsigned char *)buff);
+            break;
+        case NC_SHORT:
+            retval=nc_get_vara_short(ncid,varid,start,count,(short  *)buff);
+            break;
+        case NC_INT:
+            retval=nc_get_vara_int(ncid,varid,start,count,(int  *)buff);
+            break;
+/*        case NC_INT64:*/
+/*            retval=nc_get_vara_long(ncid,varid,start,count,(long  *)buff);*/
+/*            break;*/
+        case NC_FLOAT:
+            retval=nc_get_vara_float(ncid,varid,start,count,(float  *)buff);
+            break;
+        case NC_DOUBLE:
+            retval=nc_get_vara_double(ncid,varid,start,count,(double  *)buff);
+            break;
+        default:
+            printf("nc_get_vara() unknown type!\n");
+    }
+    return retval;
+
+    }
+int nc_get_var(int ncid,int varid,void *buff,nc_type type){
+    int retval=-1; 
+    switch(type){
+        case NC_BYTE:
+            retval=nc_get_var_uchar(ncid,varid,(unsigned char *)buff);
+            break;
+        case NC_SHORT:
+            retval=nc_get_var_short(ncid,varid,(short  *)buff);
+            break;
+        case NC_INT:
+            retval=nc_get_var_int(ncid,varid,(int  *)buff);
+            break;
+/*        case NC_INT64:*/
+/*            retval=nc_get_var_long(ncid,varid,(long  *)buff);*/
+/*            break;*/
+        case NC_FLOAT:
+            retval=nc_get_var_float(ncid,varid,(float  *)buff);
+            break;
+        case NC_DOUBLE:
+            retval=nc_get_var_double(ncid,varid,(double  *)buff);
+            break;
+        default:
+            printf("nc_get_var() unknown type!\n");
+    }
+    return retval;
 }
 #endif
