@@ -851,11 +851,12 @@ int main(int argc,char ** argv){
     size_t offs[dims_size];
     result res;
     size_t len;
-    size_t hits;
+    size_t hits=0;
     int vsize=sizeof(double);// for value
     int isize=sizeof(unsigned int); // for index value
     int label=0;
     int pre=0;
+    printf("fsize %d\n",fset->size());
     for(std::set<int>::iterator iter=fset->begin();iter!=fset->end();iter++){
         i=*iter;
         if(i!=block_num-1){
@@ -918,37 +919,46 @@ int main(int argc,char ** argv){
 /*            for(j=0;j<dims_size;j++){*/
 /*                printf("%",offs[i])*/
 /*            }*/
-            printf("%d %d %d\n",offs[0],offs[1],offs[2]);
-            printf("%d %d %d\n",count[0],count[1],count[2]);
+/*            printf("%d %d %d\n",offs[0],offs[1],offs[2]);*/
+/*            printf("%d %d %d\n",offs[0]+count[0],offs[1]+count[1],offs[2]+count[2]);*/
             bool contained=true;
             size_t parts[dims_size];
             size_t pbegins[dims_size];
             size_t asize=1;
+            printf("%d %d %d\n",offs[0],offs[1],offs[2]);
+            printf("%d %d %d\n",offs[0]+count[0],offs[1]+count[1],offs[2]+count[2]);
             for(j=0;j<dims_size;j++){
-                if(!(dbegins[i]<=offs[i]&&dends[i]>=(offs[i]+count[i]))){
+                if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){
                     contained=false;
                 }
-                pbegins[i]=offs[i];
-                if(dbegins[i]>offs[i]){
-                    pbegins[i]=dbegins[i];
-                    parts[i]=offs[i]+count[i]-pbegins[i]+1;
+                pbegins[j]=offs[j];
+                parts[j]=count[j];
+                if(dbegins[j]>offs[j]){
+                    pbegins[j]=dbegins[j];
+                    parts[j]=offs[j]+count[j]-pbegins[j];
                 }
-                if(dends[i]<offs[i]+count[i]){
-                    parts[i]=dends[i]-pbegins[i]+1;
+                if(dends[j]<offs[j]+count[j]){
+                    parts[j]=dends[j]-pbegins[j]+1;
                 }
-                asize*=parts[i];
+                asize*=parts[j];
             }
             if(contained){
                 hits+=count[0]*countdshape[dims_size-1];
-                printf("contained %d\n",countdshape[dims_size-1]);
+                printf("contained %d\n",count[0]*countdshape[dims_size-1]);
             }else{
                 hits+=asize;
-                printf("parts %d\n",countdshape[dims_size-1]);
+                printf("parts %d\n",asize);
             }
             label++;
         }
 
     }
+        int phits=1;
+        for(i=0;i<dims_size;i++){
+            phits=phits*(dends[i]-dbegins[i]+1);
+            printf("%d\n",phits,dends[i]-dbegins[i]+1);
+        }
+        printf("hits %d %d\n",hits,phits);
     
 
 /*    result res;*/
