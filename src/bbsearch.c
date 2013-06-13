@@ -4,6 +4,7 @@
 #include <float.h>
 /*#include <time.h>*/
 #include <sys/time.h>
+#include <map>
 #include "common.h"
 #include "rsearch.h"
 /*typedef enum { false, true } bool;*/
@@ -21,6 +22,7 @@ typedef struct condtion_t{
     double *maxmap;
     double maxsize;
 }cond;
+
 /*void init_cond(DIMS dims,){*/
 /*    int i;*/
 /**/
@@ -102,6 +104,46 @@ void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
     }
     sizes[cols_size]=get_type_size(dims->var_type);
     offset[cols_size]=offset[cols_size-1]+get_type_size(dims->var_type);
+}
+int dquery(std::map<int,bool> &dblocks,int *begins, int *ends,size_t *shape,int *bound,int dims_size){
+
+    int head[dims_size];  
+    size_t newshape[dims_size];
+    size_t newdshape[dims_size];
+    size_t count[dims_size];
+    size_t countdshape[dims_size];
+    int idx[dims_size];
+    bool headfull[dims_size];
+    bool tailfull[dims_size];
+    int len[dims_size];
+    int i,j,len;
+    get_new_shape(newshape,bound,shape,dims_size);
+    get_dshape(newdshape,newshape,dims_size);
+
+    for(i=0;i<dims_size;i++){
+        len[i]=shape[i]/bound[i];
+        head[i]=begins[i]/bound[i];
+        if(begins[i]%len[i]==0){
+            headfull[dims_size]=true;
+        }
+        count[i]=ends[i]/bound[i]-head[i]+1;
+        if(ends[i]%bound[i]==len[i]-1||ends[i]==shape[i]-1){
+            endfull[dims_size]=true;
+        }
+    }
+    int all_size=1;
+    for(i=0;i<dims_size;i++){
+        all_size*=count[i];
+    }
+    get_dshape(countdshape,count,dims_size);
+    for(i=0;i<all_size;i++){
+       get_idx(idx,i,countdshape,dims_size);
+       for(j=0;j<dims_size;j++){
+           idx[j]+=head[j];
+       }
+    }
+
+    return 0;
 }
 int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int cols_size,FILE *ofp,MODE m){ 
     struct timeval tbegin,tend;
@@ -588,9 +630,9 @@ int main(int argc,char ** argv){
     /* parse the bmeta file end!*/ 
 
     size_t *newshape = (size_t *)calloc(dims_size,sizeof(size_t));
-    size_t *newdshape = (size_t *)calloc(dims_size,sizeof(size_t));
+/*    size_t *newdshape = (size_t *)calloc(dims_size,sizeof(size_t));*/
     get_new_shape(newshape,bound,shape,dims_size);
-    get_dshape(newdshape,newshape,dims_size);
+/*    get_dshape(newdshape,newshape,dims_size);*/
     size_t block_num=1;
     size_t all_size=1;
     for(i=0;i<dims_size;i++){
