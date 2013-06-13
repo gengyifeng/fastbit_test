@@ -254,7 +254,7 @@ int main(int argc, char ** argv){
    unsigned int *idxs =(unsigned int *)calloc(block_size,sizeof(unsigned int));
 
    for(i=0;i<block_num;i++){
-       printf("Block num %d\n",i);
+/*       printf("Block num %d\n",i);*/
        get_idx(newidx,i,newdshape,dims_size);
        get_start_count(start,count,newidx,newshape,bound,dsizes,dims_size);
        int count_size=1;
@@ -281,12 +281,14 @@ int main(int argc, char ** argv){
        binfo[i].boffset=boffset;
        binfo[i].min=data[0].val;
        binfo[i].max=data[count_size-1].val;
-       printf("boffset %d count_size %d block min %lf, max %lf\n",boffset, count_size,binfo[i].min,binfo[i].max);
+       printf("id %d boffset %d count_size %d block min %lf, max %lf\n",i,boffset, count_size,binfo[i].min,binfo[i].max);
        vnodes[i].min=data[0].val;
        vnodes[i].max=data[count_size-1].val;
        vnodes[i].val=i;
 /*       fwrite(&boffset,sizeof(size_t),1,fp_boffset);*/
        fwrite(idxs,sizeof(unsigned int),count_size,fp_idx);
+/*       if(i==0)*/
+/*           printf("test %d %lf\n",idxs[0],vals[0]);*/
        fwrite(vals,sizeof(double),count_size,fp);
        boffset+=count_size;
    }

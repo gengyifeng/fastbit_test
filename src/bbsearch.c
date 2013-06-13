@@ -900,65 +900,51 @@ int main(int argc,char ** argv){
                     fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                     fread(buff,vsize,len,fp);
                     fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                    fread(ibuff,isize,len,fp);
+                    fread(ibuff,isize,len,ifp);
                 }else{
                     fread(buff,vsize,len,fp);
-                    fread(ibuff,isize,len,fp);
+                    fread(ibuff,isize,len,ifp);
                 }
+                pre=i;
             }else{
                 fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                 fread(buff,vsize,len,fp);
                 fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                fread(ibuff,isize,len,fp);
+                fread(ibuff,isize,len,ifp);
+/*                printf("binfo offset %d\n",binfo[i].boffset);*/
+/*                printf("test %d %lf\n",ibuff[0],buff[0]);*/
                 pre=i; 
             }
             get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
         
-/*            get_idx(idx,i,newdshape,dims_size);*/
-            int j;
-/*            for(j=0;j<dims_size;j++){*/
-/*                printf("%",offs[i])*/
-/*            }*/
-/*            printf("%d %d %d\n",offs[0],offs[1],offs[2]);*/
-/*            printf("%d %d %d\n",offs[0]+count[0],offs[1]+count[1],offs[2]+count[2]);*/
             bool contained=true;
-            size_t parts[dims_size];
-            size_t pbegins[dims_size];
-            size_t asize=1;
-            printf("%d %d %d\n",offs[0],offs[1],offs[2]);
-            printf("%d %d %d\n",offs[0]+count[0],offs[1]+count[1],offs[2]+count[2]);
+            printf("len %d \n",len);
             for(j=0;j<dims_size;j++){
                 if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){
                     contained=false;
+                    break;
                 }
-                pbegins[j]=offs[j];
-                parts[j]=count[j];
-                if(dbegins[j]>offs[j]){
-                    pbegins[j]=dbegins[j];
-                    parts[j]=offs[j]+count[j]-pbegins[j];
-                }
-                if(dends[j]<offs[j]+count[j]){
-                    parts[j]=dends[j]-pbegins[j]+1;
-                }
-                asize*=parts[j];
             }
             if(contained){
                 hits+=count[0]*countdshape[dims_size-1];
                 printf("contained %d\n",count[0]*countdshape[dims_size-1]);
             }else{
-                hits+=asize;
-                printf("parts %d\n",asize);
+                for(j=0;j<len;j++){
+                    get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
+                    if(check_dim_condition(idx,dbegins,dends,dims_size)){
+                        hits++;
+                    }
+                }
             }
-            label++;
         }
+        label++;
 
     }
         int phits=1;
         for(i=0;i<dims_size;i++){
             phits=phits*(dends[i]-dbegins[i]+1);
-            printf("%d\n",phits,dends[i]-dbegins[i]+1);
         }
-        printf("hits %d %d\n",hits,phits);
+        printf("hits %d should be %d\n",hits,phits);
     
 
 /*    result res;*/
