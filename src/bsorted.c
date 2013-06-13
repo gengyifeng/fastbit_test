@@ -205,7 +205,7 @@ int main(int argc, char ** argv){
    size_t  *countdshape=(size_t *)calloc(dims_size,sizeof(size_t));
    size_t *newshape=(size_t *)calloc(dims_size,sizeof(size_t));
    size_t *newdshape=(size_t *)calloc(dims_size,sizeof(size_t));
-   int *newidx=(int *)calloc(dims_size,sizeof(int));
+   size_t *newidx=(size_t *)calloc(dims_size,sizeof(size_t));
    int *bound=(int *)calloc(dims_size,sizeof(int));
    nbound(bound,n,dims_size);
    get_new_shape(newshape,bound,dsizes,dims_size);

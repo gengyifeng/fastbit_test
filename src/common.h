@@ -103,7 +103,7 @@ void destory_dims(DIMS *dims){
     free(dims->dimvals);
 }
 
-void get_dshape(size_t *dshape,size_t *shape,int size){
+inline void get_dshape(size_t *dshape,size_t *shape,int size){
     int i;
     int tmp=1;
     dshape[0]=1;
@@ -111,7 +111,18 @@ void get_dshape(size_t *dshape,size_t *shape,int size){
       dshape[i]=tmp=tmp*shape[size-i];
     } 
 }
-inline void get_idx(int *idx,size_t pos,size_t *dshape,int size){
+inline void get_idx_in_block(size_t *idx,size_t pos,size_t *dshape,size_t *begin,int size){
+   int i;
+   size_t tmp=pos;
+   for(i=0;i<size;i++){
+       idx[i]=tmp/dshape[size-1-i];
+       tmp=tmp-idx[i]*dshape[size-1-i];
+       idx[i]+=begin[i];
+/*     printf("%d:%d ",dshape[size-1-i],idx[i]);*/
+   }
+/*   printf("\n");*/
+}
+inline void get_idx(size_t *idx,size_t pos,size_t *dshape,int size){
    int i;
    size_t tmp=pos;
    for(i=0;i<size;i++){
@@ -121,7 +132,7 @@ inline void get_idx(int *idx,size_t pos,size_t *dshape,int size){
    }
 /*   printf("\n");*/
 }
-inline size_t get_index(int *idx,size_t *dshape,int size){
+inline size_t get_index(size_t *idx,size_t *dshape,int size){
    int i;
 //   size_t tmp=pos;
    size_t tmp=idx[size-1];
@@ -182,7 +193,7 @@ void get_new_shape(size_t *newshape,int *bound,size_t *shape,int size){
     }
     
 }
-inline void get_start_count(size_t *start,size_t *count,int *newidx,size_t *newshape,int *bound,size_t *shape,int size){
+inline void get_start_count(size_t *start,size_t *count,size_t *newidx,size_t *newshape,int *bound,size_t *shape,int size){
    int i,len;
    for(i=0;i<size;i++){
        len=shape[i]/bound[i];

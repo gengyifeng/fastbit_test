@@ -117,7 +117,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
             }
         }else{
             size_t dshape[dims->dims_size];
-            int idx[dims->dims_size];
+            size_t idx[dims->dims_size];
             get_dshape(dshape,dims->shape,dims->dims_size);
             int *offsets=(int *)calloc(cols_size+1,sizeof(int));
 
@@ -159,7 +159,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
             }
         }else{
             size_t dshape[dims->dims_size];
-            int idx[dims->dims_size];
+            size_t idx[dims->dims_size];
             get_dshape(dshape,dims->shape,dims->dims_size);
             int *offsets=(int *)calloc(cols_size+1,sizeof(int));
             int j;

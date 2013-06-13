@@ -56,7 +56,7 @@ inline void print_last_var(void *var,nc_type type){
     }
     return;
 }
-inline void print_row(void **dims_in,int dims_size, int *idx,nc_type*dtypes,int * sizes,void *buff,size_t j,nc_type vtype,int vsize){
+inline void print_row(void **dims_in,int dims_size, size_t *idx,nc_type*dtypes,size_t * sizes,void *buff,size_t j,nc_type vtype,int vsize){
     int i;
     for(i=0;i<dims_size;i++){
         print_var(((char *)dims_in[i])+sizes[i]*idx[i],dtypes[i]);
@@ -144,8 +144,8 @@ int main(int argc, char ** argv){
    size_t *start=(size_t *)calloc(dims_size,sizeof(size_t));
    size_t *count=(size_t *)calloc(dims_size,sizeof(size_t));
    size_t *dshape=(size_t *)calloc(dims_size,sizeof(size_t));
-   int *sizes=(int *)calloc(dims_size,sizeof(int));
-   int *idx=(int *)calloc(dims_size,sizeof(int));
+   size_t *sizes=(size_t *)calloc(dims_size,sizeof(size_t));
+   size_t *idx=(size_t *)calloc(dims_size,sizeof(size_t));
    int var_size=get_nctype_size(vtype);
    void * buff=(void *)calloc(all_size/dsizes[0],var_size);
    for(i=0;i<dims_size;i++){

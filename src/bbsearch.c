@@ -45,10 +45,54 @@ size_t check_index(int *index,int *shape,int size){
     }
     return tmp;
 }
+inline bool check_dim_condition(size_t *idx,size_t *begin,size_t *end,int dims_size){
+    int i;
+/*    bool res=true;*/
+    for(i=0;i<dims_size;i++){
+        if(idx[i]>end[i]||idx[i]<begin[i]){
+            return false;
+        }
+    }
+    return true;
+}
+/*inline void get_idx_in_block(size_t *idx,unsigned int offset,size_t * begin,size_t *countdshape,size_t* int dims_size){*/
+/*    get_idx_in_block(idx,offset,countdshape,begin,dims_size);*/
+/*    size_t count[dims_size];*/
+/*    size_t idx[dims_size];*/
+/*    int i;*/
+/*    get_idx(idx,blockid,newdshape,dims_size);*/
+/*    for(i=0;i<dims_size;i++){*/
+/*        if(idx[i]!=bound[i]-1)*/
+/*            count[i]=shape[i]/bound[i];*/
+/*        else*/
+/*            count[i]=shape[i]-(shape[i]/bound[i])*(bound[i]-1);*/
+/*    }*/
+/*    get_dshape(countdshape,count,dims_size);*/
+/*    get_index(countdshape);*/
+
+    
+/*}*/
+inline void get_begin_count_countdshape(size_t *begin,size_t *count,size_t *countdshape,size_t id,size_t *shape,size_t *newdshape,int *bound,int dims_size){
+/*    size_t count[dims_size];*/
+    size_t idx[dims_size];
+    int i;
+    get_idx(idx,id,newdshape,dims_size);
+    size_t len;
+    for(i=0;i<dims_size;i++){
+        len=shape[i]/bound[i];
+        begin[i]=idx[i]*len;
+        if(idx[i]!=bound[i]-1){
+            count[i]=len;
+        }else{
+            count[i]=shape[i]-len*(bound[i]-1);
+        }
+    }
+    get_dshape(countdshape,count,dims_size);
+}
 /*size_t validate(size_t *idx,DIMS dims,cond c){*/
 /*    int i;*/
 /*    for(i=0;i<c.minsize;i++){*/
-/*       dims.dimvals[idx[c.minmap[i]]];*/
+/*       dims.dimvals[i</c>dx[c.minmap[i]]];*/
         
 /*    }*/
 /*}*/
@@ -102,14 +146,14 @@ void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
     sizes[cols_size]=get_type_size(dims->var_type);
     offset[cols_size]=offset[cols_size-1]+get_type_size(dims->var_type);
 }
-int block_query(std::set<int> &dblocks,int *begins, int *ends,size_t *shape,int *bound,int dims_size){
+int block_query(std::set<int> &dblocks,size_t*begins, size_t*ends,size_t *shape,int *bound,int dims_size){
 
     int head[dims_size];  
     size_t newshape[dims_size];
     size_t newdshape[dims_size];
     size_t count[dims_size];
     size_t countdshape[dims_size];
-    int idx[dims_size];
+    size_t idx[dims_size];
     bool headfull[dims_size];
     bool tailfull[dims_size];
     int len[dims_size];
@@ -185,7 +229,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
             }
         }else{
             size_t dshape[dims->dims_size];
-            int idx[dims->dims_size];
+            size_t idx[dims->dims_size];
             get_dshape(dshape,dims->shape,dims->dims_size);
             int *offsets=(int *)calloc(cols_size+1,sizeof(int));
 
@@ -227,7 +271,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
             }
         }else{
             size_t dshape[dims->dims_size];
-            int idx[dims->dims_size];
+            size_t idx[dims->dims_size];
             get_dshape(dshape,dims->shape,dims->dims_size);
             int *offsets=(int *)calloc(cols_size+1,sizeof(int));
             int j;
@@ -587,15 +631,15 @@ int parse_condition(char *s,double *min,bool *min_equal,double *max,bool *max_eq
     printf("%s min %lf max %lf\n",s, *min,*max);
     return 0;
 }
-int set_begin_end(int*begin, int*end,DIMS &dims,cond &conds){
+int set_begin_end(size_t  *begin, size_t *end,DIMS &dims,cond &conds){
     int i;
     result res;
     for(i=0;i<dims.dims_size;i++){
         if(conds.valid[i]==true){
-            printf("test\n");
             if(0<=binary_search((double*)(dims.dimvals[i]),dims.shape[i],conds.min[i],conds.max[i],conds.minequal[i],conds.maxequal[i],&res)){
                begin[i]=res.begin;
                end[i]=res.end;
+               printf("set_begin_end begin %d end %d\n",begin[i],end[i]);
             }else{
                 return -1;
             }
@@ -606,6 +650,7 @@ int set_begin_end(int*begin, int*end,DIMS &dims,cond &conds){
     }
     return 0;
 }
+
 int main(int argc,char ** argv){
     struct timeval tbegin, tend;
     struct timeval read_tbegin,read_tend;
@@ -613,7 +658,10 @@ int main(int argc,char ** argv){
 /*    int X_LIMIT;*/
 /*    sscanf(argv[1],"%d",&X_LIMIT);*/
     bool need_scan=false;
-    
+    double min=DBL_MIN;
+    double max=DBL_MAX;
+    bool min_equal=true;
+    bool max_equal=true;
 /*    char lb,rb;*/
 /*    printf("%s\n",argv[2]);*/
 /*    sscanf(argv[2],"%c%lf,%lf%c",&lb,&min,&max,&rb);*/
@@ -636,7 +684,7 @@ int main(int argc,char ** argv){
     FILE *bfp=fopen(ifilename,"r");
    
     /* parse the bmeta file start!*/ 
-    int i,j;
+    size_t i,j;
     char line[512]={0};
     int dims_size;
     fgets(line,sizeof(line),mfp);
@@ -701,46 +749,21 @@ int main(int argc,char ** argv){
     }
     /*parse the input arguments start!*/
 
-    double min=DBL_MIN;
-    double max=DBL_MAX;
-    bool min_equal=true;
-    bool max_equal=true;
 /*   parse_condition(argv[2],&min,&min_equal,&max,&max_equal); */
     size_t *newshape = (size_t *)calloc(dims_size,sizeof(size_t));
-/*    size_t *newdshape = (size_t *)calloc(dims_size,sizeof(size_t));*/
+    size_t *newdshape = (size_t *)calloc(dims_size,sizeof(size_t));
+    size_t *dshape = (size_t *)calloc(dims_size,sizeof(size_t));
     get_new_shape(newshape,bound,shape,dims_size);
-/*    get_dshape(newdshape,newshape,dims_size);*/
+    get_dshape(newdshape,newshape,dims_size);
+    get_dshape(dshape,shape,dims_size);
     size_t block_num=1;
     size_t all_size=1;
     for(i=0;i<dims_size;i++){
         block_num*=newshape[i];
         all_size*=shape[i];
     }
-    int block_size=get_max_block_size(bound,shape,dims_size);
-/*    printf("block_size %d\n",block_size);*/
-    double *buff=(double *)calloc(block_size,sizeof(double)); 
     block_info *binfo=(block_info*)calloc(block_num,sizeof(block_info));
     fread(binfo,sizeof(block_info),block_num,bfp);
-    vnode vns[block_num];
-/*    vnode *vns=(vnode*)calloc(block_num,sizeof(vnode));*/
-    double gmin=DBL_MAX,gmax=DBL_MIN;
-    for(i=0;i<block_num;i++){
-        if(binfo[i].min<gmin)
-            gmin=binfo[i].min;
-        if(binfo[i].max>gmax)
-            gmax=binfo[i].max;
-        vns[i].min=binfo[i].min;
-        vns[i].max=binfo[i].max;
-        vns[i].val=i;
-        printf("block_id %d min %lf max %lf\n",i,binfo[i].min,binfo[i].max);
-    }  
-/*    int max_level=get_max_level(100*block_num);*/
-    int max_level=10;
-/*    max_level=3;*/
-    int rnodes_size=get_tree_size(max_level);
-/*    printf("max_level %d rnodes_size %d\n",max_level,rnodes_size);*/
-    rnode rnodes[rnodes_size];
-    init_rnodes(rnodes,0,gmin,gmax,0,vns,block_num,max_level);
 /*    for(i=0;i<8;i++){*/
 /*        vns[i].min=i;*/
 /*        vns[i].max=i+1;*/
@@ -751,12 +774,33 @@ int main(int argc,char ** argv){
     std::set<int> *dset=NULL;
     std::set<int> *fset=NULL;
     if(has_var_condition){
+
+        vnode vns[block_num];
+    /*    vnode *vns=(vnode*)calloc(block_num,sizeof(vnode));*/
+        double gmin=DBL_MAX,gmax=DBL_MIN;
+        for(i=0;i<block_num;i++){
+            if(binfo[i].min<gmin)
+                gmin=binfo[i].min;
+            if(binfo[i].max>gmax)
+                gmax=binfo[i].max;
+            vns[i].min=binfo[i].min;
+            vns[i].max=binfo[i].max;
+            vns[i].val=i;
+    /*        printf("block_id %d min %lf max %lf\n",i,binfo[i].min,binfo[i].max);*/
+        }  
+        int max_level=10;
+        int rnodes_size=get_tree_size(max_level);
+    /*    printf("max_level %d rnodes_size %d\n",max_level,rnodes_size);*/
+        rnode rnodes[rnodes_size];
+        init_rnodes(rnodes,0,gmin,gmax,0,vns,block_num,max_level);
+
         vset=new std::set<int>();
+
         rquery(*vset,min,max,rnodes,0,0,max_level);
         printf("vset size %d\n",(*vset).size());
     }
-    int *dbegins=(int *)calloc(dims_size,sizeof(int));
-    int *dends=(int *)calloc(dims_size,sizeof(int));
+    size_t *dbegins=(size_t *)calloc(dims_size,sizeof(size_t));
+    size_t *dends=(size_t *)calloc(dims_size,sizeof(size_t));
     DIMS dims;
     FILE **fps;
     if(has_dim_condition||need_scan){
@@ -771,6 +815,8 @@ int main(int argc,char ** argv){
     }
     if(has_dim_condition){
         set_begin_end(dbegins,dends,dims,conds);
+        printf("dbegins %d %d %d\n",dbegins[0],dbegins[1],dbegins[2]);
+        printf("dends %d %d %d\n",dends[0],dends[1],dends[2]);
         for(i=0;i<dims_size;i++){
             printf("%d %d\n",dbegins[i],dends[i]);
         }
@@ -795,6 +841,115 @@ int main(int argc,char ** argv){
         set_intersection(vset->begin(), vset->end(), dset->begin(), dset->end(), inserter(*fset, fset->begin()));
         printf("fset size %d\n",(*fset).size());
     }
+    int block_size=get_max_block_size(bound,shape,dims_size);
+    double *buff=(double *)calloc(block_size,sizeof(double)); 
+    unsigned int *ibuff=(unsigned int *)calloc(block_size,sizeof(unsigned int)); 
+    size_t idx[dims_size];
+/*    size_t iidx[dims_size];*/
+    size_t count[dims_size];
+    size_t countdshape[dims_size];
+    size_t offs[dims_size];
+    result res;
+    size_t len;
+    size_t hits;
+    int vsize=sizeof(double);// for value
+    int isize=sizeof(unsigned int); // for index value
+    int label=0;
+    int pre=0;
+    for(std::set<int>::iterator iter=fset->begin();iter!=fset->end();iter++){
+        i=*iter;
+        if(i!=block_num-1){
+            len=binfo[i+1].boffset-binfo[i].boffset;
+        }else{
+            len=all_size-binfo[i].boffset;
+        }
+        if(vset!=NULL){
+            if(dset==NULL){
+                if(fbsearch(fp,binfo[i].boffset*sizeof(double),sizeof(double),len,min,max,min_equal,max_equal,&res)>=0){
+/*                fread(buff,sizeof(double),res.end-res.begin+1,fp);*/
+                    hits+=res.end-res.begin+1;
+                }
+            }else{
+                if(fbsearch(fp,binfo[i].boffset*sizeof(double),sizeof(double),len,min,max,min_equal,max_equal,&res)>=0){
+                    fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);
+                    fread(buff,vsize,res.end-res.begin+1,fp);
+                    fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
+                    fread(ibuff,isize,res.end-res.begin+1,fp);
+                    size_t m;
+                    get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
+                    for(m=0;m<res.end-res.begin+1;m++){
+                        get_idx_in_block(idx,ibuff[m+res.begin],countdshape,offs,dims_size);
+                        if(check_dim_condition(idx,dbegins,dends,dims_size)){
+                            hits++;
+                        }
+                    }
+
+                }
+            
+            }
+        }else{ //only with dimensional conditions
+            size_t len;
+            if(i!=block_num-1){
+                len=binfo[i+1].boffset-binfo[i].boffset;
+            }else{
+                len=all_size-binfo[i].boffset;
+            }
+            if(label!=0){
+                if(i!=pre+1){
+                    fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+                    fread(buff,vsize,len,fp);
+                    fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                    fread(ibuff,isize,len,fp);
+                }else{
+                    fread(buff,vsize,len,fp);
+                    fread(ibuff,isize,len,fp);
+                }
+            }else{
+                fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+                fread(buff,vsize,len,fp);
+                fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                fread(ibuff,isize,len,fp);
+                pre=i; 
+            }
+            get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
+        
+/*            get_idx(idx,i,newdshape,dims_size);*/
+            int j;
+/*            for(j=0;j<dims_size;j++){*/
+/*                printf("%",offs[i])*/
+/*            }*/
+            printf("%d %d %d\n",offs[0],offs[1],offs[2]);
+            printf("%d %d %d\n",count[0],count[1],count[2]);
+            bool contained=true;
+            size_t parts[dims_size];
+            size_t pbegins[dims_size];
+            size_t asize=1;
+            for(j=0;j<dims_size;j++){
+                if(!(dbegins[i]<=offs[i]&&dends[i]>=(offs[i]+count[i]))){
+                    contained=false;
+                }
+                pbegins[i]=offs[i];
+                if(dbegins[i]>offs[i]){
+                    pbegins[i]=dbegins[i];
+                    parts[i]=offs[i]+count[i]-pbegins[i]+1;
+                }
+                if(dends[i]<offs[i]+count[i]){
+                    parts[i]=dends[i]-pbegins[i]+1;
+                }
+                asize*=parts[i];
+            }
+            if(contained){
+                hits+=count[0]*countdshape[dims_size-1];
+                printf("contained %d\n",countdshape[dims_size-1]);
+            }else{
+                hits+=asize;
+                printf("parts %d\n",countdshape[dims_size-1]);
+            }
+            label++;
+        }
+
+    }
+    
 
 /*    result res;*/
 /*    size_t hits=0;*/
