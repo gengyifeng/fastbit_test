@@ -116,9 +116,9 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
                 }
             }
         }else{
-            size_t dshape[dims->dim_size];
-            int idx[dims->dim_size];
-            get_dshape(dshape,dims->shape,dims->dim_size);
+            size_t dshape[dims->dims_size];
+            int idx[dims->dims_size];
+            get_dshape(dshape,dims->shape,dims->dims_size);
             int *offsets=(int *)calloc(cols_size+1,sizeof(int));
 
             int j;
@@ -131,8 +131,8 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
             for(i=0;i<cres->end-cres->begin+1;i++){
     /*            printf("before idx %d\n",data[i].idx);*/
                 for(k=0;k<data[i].repeat;k++){
-                    get_idx(idx,idx_data[data[i].idx+k-res->begin],dshape,dims->dim_size); 
-        /*            printf("after idx %d\n",check_index(idx,dims->shape,dims->dim_size));*/
+                    get_idx(idx,idx_data[data[i].idx+k-res->begin],dshape,dims->dims_size); 
+        /*            printf("after idx %d\n",check_index(idx,dims->shape,dims->dims_size));*/
                     for(j=0;j<cols_size;j++){
                         print_to_buf(buf+buf_pos,dims->types[cols[j]],(char *)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j]); 
                         buf_pos=strlen(buf);
@@ -158,9 +158,9 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
                 }
             }
         }else{
-            size_t dshape[dims->dim_size];
-            int idx[dims->dim_size];
-            get_dshape(dshape,dims->shape,dims->dim_size);
+            size_t dshape[dims->dims_size];
+            int idx[dims->dims_size];
+            get_dshape(dshape,dims->shape,dims->dims_size);
             int *offsets=(int *)calloc(cols_size+1,sizeof(int));
             int j;
             int *typesizes=(int *)calloc(cols_size+1,sizeof(int));
@@ -171,7 +171,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
             for(i=0;i<cres->end-cres->begin+1;i++){
                 for(k=0;k<data[i].repeat;k++){
 /*                gettimeofday(&tbegin,NULL);*/
-                get_idx(idx,idx_data[data[i].idx+k-res->begin],dshape,dims->dim_size); 
+                get_idx(idx,idx_data[data[i].idx+k-res->begin],dshape,dims->dims_size); 
 /*                gettimeofday(&tend,NULL);*/
 /*                idxtime+=tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000;*/
                 for(j=0;j<cols_size;j++){

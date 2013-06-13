@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <set>
+#include <algorithm>
 using namespace std;
 typedef struct rnode_t{
     double min;

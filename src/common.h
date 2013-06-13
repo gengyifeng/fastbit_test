@@ -34,36 +34,36 @@ typedef enum {LINEAR, HCURVE} BLOCK_MODE;
 typedef struct dims_t{
    TYPE* types;
    TYPE var_type;
-   int dim_size;
+   int dims_size;
    size_t *shape;
    void **dimvals;
 }DIMS;
 
-void read_dim(FILE *fp,void **vals,TYPE type,size_t dim_size){
+void read_dim(FILE *fp,void **vals,TYPE type,size_t dims_size){
     switch(type){
         case BYTE:
-            *vals=calloc(dim_size,sizeof(char));
-            fread(*vals,sizeof(char),dim_size,fp); 
+            *vals=calloc(dims_size,sizeof(char));
+            fread(*vals,sizeof(char),dims_size,fp); 
             break;
         case SHORT:
-            *vals=calloc(dim_size,sizeof(short));
-            fread(*vals,sizeof(short),dim_size,fp); 
+            *vals=calloc(dims_size,sizeof(short));
+            fread(*vals,sizeof(short),dims_size,fp); 
             break;
         case INT:
-            *vals=calloc(dim_size,sizeof(int));
-            fread(*vals,sizeof(int),dim_size,fp); 
+            *vals=calloc(dims_size,sizeof(int));
+            fread(*vals,sizeof(int),dims_size,fp); 
             break;
         case LONG:
-            *vals=calloc(dim_size,sizeof(long));
-            fread(*vals,sizeof(long),dim_size,fp); 
+            *vals=calloc(dims_size,sizeof(long));
+            fread(*vals,sizeof(long),dims_size,fp); 
             break;
         case FLOAT:
-            *vals=calloc(dim_size,sizeof(float));
-            fread(*vals,sizeof(float),dim_size,fp); 
+            *vals=calloc(dims_size,sizeof(float));
+            fread(*vals,sizeof(float),dims_size,fp); 
             break;
         case DOUBLE:
-            *vals=calloc(dim_size,sizeof(double));
-            fread(*vals,sizeof(double),dim_size,fp);
+            *vals=calloc(dims_size,sizeof(double));
+            fread(*vals,sizeof(double),dims_size,fp);
             break;
         defaut:
             printf("unknown type\n");
@@ -80,7 +80,7 @@ void print_dim(void *dimvals,TYPE type,int shape){
 
 
 void init_dims(DIMS* dims,int dims_size,size_t *shape,TYPE * types, TYPE var_type,FILE ** fps){ 
-   dims->dim_size=dims_size;
+   dims->dims_size=dims_size;
    dims->shape=(size_t *)calloc(dims_size,sizeof(size_t));
    dims->dimvals=(void **)calloc(dims_size,sizeof(void *));
    dims->types=(TYPE *)calloc(dims_size,sizeof(TYPE));
@@ -96,7 +96,7 @@ void init_dims(DIMS* dims,int dims_size,size_t *shape,TYPE * types, TYPE var_typ
 void destory_dims(DIMS *dims){
     int i=0;
     free(dims->shape);
-    for(i=0;i<dims->dim_size;i++){
+    for(i=0;i<dims->dims_size;i++){
         free(dims->dimvals[i]);
     }
     free(dims->types);

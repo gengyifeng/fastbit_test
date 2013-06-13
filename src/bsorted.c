@@ -11,7 +11,7 @@
 #define ERR(e) {printf("Error: %s\n", nc_strerror(e)); exit(ERRCODE);}
 /*#define FILE_NAME "/media/Soft/t_10.db.1948-2007.daymean.05APR2010.nc"*/
 #define FILE_NAME "t_10.db.1948-2007.daymean.05APR2010.nc"
-#define VAR_NAME "T_10_MOD"
+/*#define VAR_NAME "T_10_MOD"*/
 /*#define XU 1*/
 
 
@@ -171,8 +171,9 @@ int main(int argc, char ** argv){
       ERR(retval);
    nc_type vtype;
    int dims_size,nattsp;
+   char vname[128]={0};
    int *dimids=(int *)calloc(NC_MAX_DIMS,sizeof(int));
-   if ((retval = nc_inq_var(ncid,varid,0,&vtype,&dims_size,dimids, &nattsp)))
+   if ((retval = nc_inq_var(ncid,varid,vname,&vtype,&dims_size,dimids, &nattsp)))
       ERR(retval);
    int i,j;
    nc_type* dtypes=(nc_type*)calloc(dims_size,sizeof(nc_type));
@@ -242,7 +243,7 @@ int main(int argc, char ** argv){
        dfp[i]=fopen(dnames[i],"w");
    }
    fprintf(fp_meta,"Variable\tType\n");
-   fprintf(fp_meta,"%s\t%s\n",VAR_NAME,get_type_name(vtype));
+   fprintf(fp_meta,"%s\t%s\n",vname,get_type_name(vtype));
    fprintf(fp_meta,"Block Arrangement=linear\n");
    size_t boffset=0;
    block_info *binfo=(block_info *)calloc(block_num,sizeof(block_info));
