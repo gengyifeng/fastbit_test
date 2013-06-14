@@ -188,6 +188,7 @@ void get_new_shape(size_t *newshape,int *bound,size_t *shape,int size){
         if(shape[i]>=bound[i]){
             newshape[i]=bound[i];
         }else{
+            bound[i]=shape[i];
             newshape[i]=shape[i];
         }
     }

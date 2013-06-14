@@ -123,7 +123,7 @@ int main(int argc, char ** argv){
    int *dimids=(int *)calloc(NC_MAX_DIMS,sizeof(int));
    if ((retval = nc_inq_var(ncid,varid,0,&vtype,&dims_size,dimids, &nattsp)))
       ERR(retval);
-   int i,j;
+   size_t i,j;
    nc_type* dtypes=(nc_type*)calloc(dims_size,sizeof(nc_type));
    char **dnames=(char **)calloc(dims_size,sizeof(char *));
    size_t * dsizes=(size_t *)calloc(dims_size,sizeof(size_t));
@@ -158,13 +158,13 @@ int main(int argc, char ** argv){
    count[0]=1;
    get_dshape(dshape,dsizes,dims_size);
    for(i=0;i<dsizes[0];i++){
-       start[i]=i;
+       start[0]=i;
        nc_get_vara(ncid,varid,start,count,buff,vtype);
        for(j=0;j<all_size/dsizes[0];j++){
             get_idx(idx,j,dshape,dims_size);
-            idx[0]=idx[0]+i;
-/*            print_row(dims_in,idx,dtypes,sizes,buff,j,vtype,var_size);*/
-            print_row(dims_in,dims_size,idx,dtypes,sizes,buff, j,vtype,var_size);
+            idx[0]+=i;
+/*            printf("i %d j %d idx[0] %d idx[1] %d idx[2] %d\n",i,j,idx[0],idx[1],idx[2]);*/
+            print_row(dims_in,dims_size,idx,dtypes,sizes,buff,j,vtype,var_size);
        }
    }
    if ((retval = nc_close(ncid)))

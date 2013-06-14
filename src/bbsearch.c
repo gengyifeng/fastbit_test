@@ -7,10 +7,11 @@
 #include "common.h"
 #include "rsearch.h"
 /*typedef enum { false, true } bool;*/
-#define X 21900
+/*#define X 21900*/
 //#define X_LIMIT 100
-#define Y 94
-#define Z 192
+/*#define Y 94*/
+/*#define Z 192*/
+#define BLOCK_THRESHOLD 268435456
 typedef struct condition_t{
     double *min;
     bool *minequal;
@@ -341,48 +342,46 @@ size_t lsearch(const double* data,size_t len,double val,bool equal){
     int rp=len-1;
     int mid;
     while(rp>lp){
-        mid=lp+((rp-lp)>>1);
+        mid=rp-((rp-lp)>>1);
 /*        printf("mid %d\n",mid);*/
-        if(data[mid]>val)
-            rp=mid;
+        if(data[mid]>=val)
+            rp=mid-1;
         else
-            lp=mid+1;
+            lp=mid;
 /*        printf("lsearch %d %d %d\n",lp,mid ,rp);*/
     }
-    if(rp==0){
-       return 0; 
-    }
 /*    printf("rp %d val %lf\n",rp,data[rp].val);*/
-    int res=-1;
-    double tmp=data[rp];
-    if(rp==len-1){
+    double tmp=data[lp];
+    if(lp==0){
         if(equal&&tmp==val){
-            return rp;
+            return 0;
         }
-        if(val>=tmp){
-            return -1;
-        }
+        if(val<tmp)
+            return 0;
     }
     int i;
-    for(i=rp-1;i>=0;i--){
-        if(data[i]<tmp){
-/*            printf("move %lf %lf\n",data[i].val,val);*/
-            if(equal&&data[i]==val){
-                tmp=data[i];
-                while(i>=0){
-                    if(data[i]<tmp){
-                        return i+1;
+/*    printf("%f\n",data[lp]);*/
+    for(i=lp+1;i<len;i++){
+        if(data[i]>tmp){
+            if(data[i]==val){
+               if(equal){
+                    return i;
+               }else{
+                    tmp=data[i];
+                    while(i<len){
+                        if(data[i]>tmp){
+                            return i;
+                        }
+                        i++;
                     }
-                    i--;
-                }
+                    return -1;
+               }
             }else{
-                return i+1;
+                return i;
             }
-            break;
         }
     }
-/*    printf("res %d val %lf\n",res,data[res].val);*/
-    return res;
+    return -1;
 }
 
 /*
@@ -400,16 +399,13 @@ size_t rsearch(const double* data,size_t len,double val,bool equal){
         else
             lp=mid+1;
     }
-    if(rp==len-1)
-        return len-1;
-    int res=-1;
     double tmp=data[rp];
-    if(rp==0){
+    if(rp==len-1){
         if(equal&&tmp==val){
             return rp;
         }
-        if(val<=tmp){
-            return -1;
+        if(val>tmp){
+            return rp;
         }
     }
     int i;
@@ -426,15 +422,112 @@ size_t rsearch(const double* data,size_t len,double val,bool equal){
                         }
                         i--;
                     }
+                    return -1;
                }
             }else{
                 return i;
             }
         }
     }
-    return res;
+    return -1;
 }
-
+/*
+ * reverse binary search for left bound using in-memory array
+*/
+size_t reverse_lsearch(const double* data,size_t len,double val,bool equal){
+/*    printf("lsearch\n");*/
+    int lp=0;
+    int rp=len-1;
+    int mid;
+    while(rp>lp){
+        mid=rp-((rp-lp)>>1);
+/*        printf("mid %d\n",mid);*/
+        if(data[mid]<=val)
+            rp=mid-1;
+        else
+            lp=mid;
+/*        printf("lsearch %d %d %d\n",lp,mid ,rp);*/
+    }
+/*    printf("lp %d val %lf\n",rp,data[lp]);*/
+    double tmp=data[lp];
+    if(lp==0){
+        if(equal&&tmp==val){
+            return 0;
+        }
+        if(val>tmp)
+            return 0;
+    }
+    int i;
+/*    printf("%f\n",data[lp]);*/
+    for(i=lp+1;i<len;i++){
+        if(data[i]<tmp){
+            if(data[i]==val){
+               if(equal){
+                    return i;
+               }else{
+                    tmp=data[i];
+                    while(i<len){
+                        if(data[i]<tmp){
+                            return i;
+                        }
+                        i++;
+                    }
+                    return -1;
+               }
+            }else{
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+/*
+ * reverse binary search for right bound using in-memory array
+*/
+size_t reverse_rsearch(const double* data,size_t len,double val,bool equal){
+/*    printf("rsearch\n");*/
+    int lp=0;
+    int rp=len-1;
+    int mid;
+    while(rp>lp){
+        mid=lp+((rp-lp)>>1);
+        if(data[mid]<val)
+            rp=mid;
+        else
+            lp=mid+1;
+    }
+    double tmp=data[rp];
+    if(rp==len-1){
+        if(equal&&tmp==val){
+            return rp;
+        }
+        if(val<tmp){
+            return rp;
+        }
+    }
+    int i;
+    for(i=rp-1;i>=0;i--){
+        if(data[i]>tmp){
+            if(data[i]==val){
+               if(equal){
+                    return i;
+               }else{
+                    tmp=data[i];
+                    while(i>=0){
+                        if(data[i]>tmp){
+                            return i;
+                        }
+                        i--;
+                    }
+                    return -1;
+               }
+            }else{
+                return i;
+            }
+        }
+    }
+    return -1;
+}
 /*
  * binary search using in-memory array
 */
@@ -445,10 +538,16 @@ int binary_search(const double* data,size_t len,double min,double max,bool min_e
    struct timeval tbegin,tend;
    gettimeofday(&tbegin,NULL);
 /*   printf("min %lf max %lf len %d\n",min,max,len);*/
-   res->begin=lsearch(data,len,min,min_equal);
-   res->end=rsearch(data,len,max,max_equal);
+   if(data[len-1]>=data[0]){
+       res->begin=lsearch(data,len,min,min_equal);
+       res->end=rsearch(data,len,max,max_equal);
+   }else{
+       res->begin=reverse_lsearch(data,len,max,max_equal);
+       res->end=reverse_rsearch(data,len,min,min_equal);
+   }
+/*   printf("res %d %d\n",res->begin,res->end);*/
    gettimeofday(&tend,NULL);
-   if(res->begin!=-1&&res->end!=-1){
+   if(res->begin!=-1&&res->end!=-1&&res->end>=res->begin){
 
 /*       printf("hit number:%ld\n",res->end-res->begin+1);*/
 /*       printf("begin %lf %lf end %lf %lf\n",data[res->begin-1],data[res->begin],data[res->end],data[res->end+1]);*/
@@ -458,6 +557,7 @@ int binary_search(const double* data,size_t len,double min,double max,bool min_e
    return -1;
 }
 
+
 /*
  * read a value from a file using fseek
 */
@@ -465,6 +565,64 @@ inline void read_from_file_with_offset(FILE * fp,size_t offset,size_t size,size_
         fseek(fp,offset+size*pos,SEEK_SET);
         fread(data,size,1,fp);
 /*        printf("%f %d\n",data->val,data->repeat);*/
+}
+
+
+
+/*
+ * binary search for left bound using fseek
+*/
+size_t flsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,double val,bool equal){
+/*    printf("lsearch\n");*/
+    int lp=0;
+    int rp=len-1;
+    int mid;
+    double data;
+    while(rp>lp){
+        mid=rp-((rp-lp)>>1);
+/*        printf("mid %d\n",mid);*/
+        read_from_file_with_offset(fp,offset,size,mid,&data);
+        if(data>=val)
+            rp=mid-1;
+        else
+            lp=mid;
+/*        printf("lsearch %d %d %d\n",lp,mid ,rp);*/
+    }
+/*    printf("rp %d val %lf\n",rp,data[rp].val);*/
+    read_from_file_with_offset(fp,offset,size,lp,&data);
+    double tmp=data;
+    if(lp==0){
+        if(equal&&tmp==val){
+            return 0;
+        }
+        if(val<tmp)
+            return 0;
+    }
+    int i;
+/*    printf("%f\n",data[lp]);*/
+    for(i=lp+1;i<len;i++){
+        read_from_file_with_offset(fp,offset,size,i,&data);
+        if(data>tmp){
+            if(data==val){
+               if(equal){
+                    return i;
+               }else{
+                    tmp=data;
+                    while(i<len){
+                        read_from_file_with_offset(fp,offset,size,i,&data);
+                        if(data>tmp){
+                            return i;
+                        }
+                        i++;
+                    }
+                    return -1;
+               }
+            }else{
+                return i;
+            }
+        }
+    }
+    return -1;
 }
 
 /*
@@ -484,18 +642,14 @@ size_t frsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,doubl
         else
             lp=mid+1;
     }
-    if(rp==len-1)
-        return len-1;
-    int res=-1;
-    
     read_from_file_with_offset(fp,offset,size,rp,&data);
     double tmp=data;
-    if(rp==0){
+    if(rp==len-1){
         if(equal&&tmp==val){
             return rp;
         }
-        if(val<=tmp){
-            return -1;
+        if(val>tmp){
+            return rp;
         }
     }
     int i;
@@ -514,72 +668,15 @@ size_t frsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,doubl
                         }
                         i--;
                     }
+                    return -1;
                }
             }else{
                 return i;
             }
         }
     }
-    return res;
+    return -1;
 }
-
-/*
- * binary search for left bound using fseek
-*/
-size_t flsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,double val,bool equal){
-/*    printf("lsearch\n");*/
-    int lp=0;
-    int rp=len-1;
-    int mid;
-    double data;
-    while(rp>lp){
-        mid=lp+((rp-lp)>>1);
-        read_from_file_with_offset(fp,offset,size,mid,&data);
-        if(data>val)
-            rp=mid;
-        else
-            lp=mid+1;
-/*        printf("lsearch %d %d %d\n",lp,mid ,rp);*/
-    }
-    if(rp==0){
-       return 0; 
-    }
-/*    printf("rp %d val %lf\n",rp,data[rp].val);*/
-    int res=-1;
-    read_from_file_with_offset(fp,offset,size,rp,&data);
-    double tmp=data;
-    if(rp==len-1){
-        if(equal&&tmp==val){
-            return rp;
-        }
-        if(val>=tmp){
-            return -1;
-        }
-    }
-    int i;
-    for(i=rp-1;i>=0;i--){
-        read_from_file_with_offset(fp,offset,size,i,&data);
-        if(data<tmp){
-/*            printf("move %lf %lf\n",data[i].val,val);*/
-            if(equal&&data==val){
-                tmp=data;
-                while(i>=0){
-                    read_from_file_with_offset(fp,offset,size,i,&data);
-                    if(data<tmp){
-                        return i+1;
-                    }
-                    i--;
-                }
-            }else{
-                return i+1;
-            }
-            break;
-        }
-    }
-/*    printf("res %d val %lf\n",res,data[res].val);*/
-    return res;
-}
-
 
 /*
  * binary search using fseek
@@ -593,7 +690,7 @@ int fbsearch(FILE * fp,size_t offset,size_t size,size_t len,double min,double ma
    res->begin=flsearch_with_offset(fp,offset,size,len,min,min_equal);
    res->end=frsearch_with_offset(fp,offset,size,len,max,max_equal);
    gettimeofday(&tend,NULL);
-   if(res->begin!=-1&&res->end!=-1){
+   if(res->begin!=-1&&res->end!=-1&&res->end>=res->begin){
 /*       double data; */
 /*       read_from_file_with_offset(fp,offset,sizeof(double),cres->begin,&data);*/
 /*       res->begin=data.idx;*/
@@ -615,6 +712,8 @@ int init_conditions(cond *conds,int dims_size){
     conds->maxequal=(bool *)calloc(dims_size,sizeof(bool));
     conds->valid=(bool *)calloc(dims_size,sizeof(bool));
     for(i=0;i<dims_size;i++){
+        conds->minequal[i]=true;
+        conds->maxequal[i]=true;
         conds->valid[i]=false;
     }
 }
@@ -627,7 +726,7 @@ int parse_condition(char *s,double *min,bool *min_equal,double *max,bool *max_eq
     if(rb==')'){
         *max_equal=false;
     }
-    printf("%s min %lf max %lf\n",s, *min,*max);
+/*    printf("%s min %lf max %lf\n",s, *min,*max);*/
     return 0;
 }
 int set_begin_end(size_t  *begin, size_t *end,DIMS &dims,cond &conds){
@@ -820,8 +919,8 @@ int main(int argc,char ** argv){
     }
     if(has_dim_condition){
         set_begin_end(dbegins,dends,dims,conds);
-/*        printf("dbegins %d %d %d\n",dbegins[0],dbegins[1],dbegins[2]);*/
-/*        printf("dends %d %d %d\n",dends[0],dends[1],dends[2]);*/
+        printf("dbegins %d %d %d\n",dbegins[0],dbegins[1],dbegins[2]);
+        printf("dends %d %d %d\n",dends[0],dends[1],dends[2]);
 /*        for(i=0;i<dims_size;i++){*/
 /*            printf("%d %d\n",dbegins[i],dends[i]);*/
 /*        }*/
@@ -861,7 +960,7 @@ int main(int argc,char ** argv){
     int isize=sizeof(unsigned int); // for index value
     int label=0;
     int pre=0;
-    printf("fsize %d\n",fset->size());
+    int retval;
     for(std::set<int>::iterator iter=fset->begin();iter!=fset->end();iter++){
         i=*iter;
         if(i!=block_num-1){
@@ -869,18 +968,41 @@ int main(int argc,char ** argv){
         }else{
             len=all_size-binfo[i].boffset;
         }
+        if(label!=0){
+            if(i!=pre+1){
+                fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+                fread(buff,vsize,len,fp);
+                fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                fread(ibuff,isize,len,ifp);
+            }else{
+                fread(buff,vsize,len,fp);
+                fread(ibuff,isize,len,ifp);
+            }
+            pre=i;
+        }else{
+            fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+            fread(buff,vsize,len,fp);
+            fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+            fread(ibuff,isize,len,ifp);
+/*                printf("binfo offset %d\n",binfo[i].boffset);*/
+/*                printf("test %d %lf\n",ibuff[0],buff[0]);*/
+            pre=i; 
+        }
         if(vset!=NULL){
             if(dset==NULL){
-                if(fbsearch(fp,binfo[i].boffset*sizeof(double),sizeof(double),len,min,max,min_equal,max_equal,&res)>=0){
+/*                if(fbsearch(fp,binfo[i].boffset*sizeof(double),sizeof(double),len,min,max,min_equal,max_equal,&res)>=0){*/
+                if(binary_search(buff,len,min,max,min_equal,max_equal,&res)>=0){
+
 /*                fread(buff,sizeof(double),res.end-res.begin+1,fp);*/
                     hits+=res.end-res.begin+1;
                 }
             }else{
-                if(fbsearch(fp,binfo[i].boffset*sizeof(double),sizeof(double),len,min,max,min_equal,max_equal,&res)>=0){
-                    fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);
-                    fread(buff,vsize,res.end-res.begin+1,fp);
-                    fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
-                    fread(ibuff,isize,res.end-res.begin+1,ifp);
+/*                if(fbsearch(fp,binfo[i].boffset*sizeof(double),sizeof(double),len,min,max,min_equal,max_equal,&res)>=0){*/
+                if(binary_search(buff,len,min,max,min_equal,max_equal,&res)>=0){
+/*                    fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);*/
+/*                    fread(buff,vsize,res.end-res.begin+1,fp);*/
+/*                    fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);*/
+/*                    fread(ibuff,isize,res.end-res.begin+1,ifp);*/
                     get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
                     for(j=0;j<res.end-res.begin+1;j++){
                         get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
@@ -893,30 +1015,9 @@ int main(int argc,char ** argv){
             
             }
         }else{ //only with dimensional conditions
-            if(label!=0){
-                if(i!=pre+1){
-                    fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
-                    fread(buff,vsize,len,fp);
-                    fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                    fread(ibuff,isize,len,ifp);
-                }else{
-                    fread(buff,vsize,len,fp);
-                    fread(ibuff,isize,len,ifp);
-                }
-                pre=i;
-            }else{
-                fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
-                fread(buff,vsize,len,fp);
-                fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                fread(ibuff,isize,len,ifp);
-/*                printf("binfo offset %d\n",binfo[i].boffset);*/
-/*                printf("test %d %lf\n",ibuff[0],buff[0]);*/
-                pre=i; 
-            }
             get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
         
             bool contained=true;
-            printf("len %d \n",len);
             for(j=0;j<dims_size;j++){
                 if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){
                     contained=false;
@@ -925,7 +1026,7 @@ int main(int argc,char ** argv){
             }
             if(contained){
                 hits+=count[0]*countdshape[dims_size-1];
-                printf("contained %d\n",count[0]*countdshape[dims_size-1]);
+/*                printf("contained %d\n",count[0]*countdshape[dims_size-1]);*/
             }else{
                 for(j=0;j<len;j++){
                     get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
@@ -938,11 +1039,46 @@ int main(int argc,char ** argv){
         label++;
 
     }
-        int phits=1;
-        for(i=0;i<dims_size;i++){
-            phits=phits*(dends[i]-dbegins[i]+1);
+    int phits=1;
+    for(i=0;i<dims_size;i++){
+        phits=phits*(dends[i]-dbegins[i]+1);
+    }
+    printf("hits %d in the range of %d\n",hits,phits);
+/*    double a[]={0,0,0,1,1,1,1,2,2,2,2,4,6,7,8,9,9,9,9,10,10};*/
+/*    double a[]={0};*/
+    double a[]={10,10,9,9,9,9,8,7,6,4,2,2,2,2,2,1,1,1,1,0,0,0};
+    result r;
+    if(binary_search(a,sizeof(a)/sizeof(double),0,0,true,true,&r)>=0){
+        for(i=0;i<r.end-r.begin+1;i++){
+            printf("%f ",a[r.begin+i]);
         }
-        printf("hits %d should be %d\n",hits,phits);
+        printf("\n");
+    }
+    if(binary_search(a,sizeof(a)/sizeof(double),0,1,false,true,&r)>=0){
+        for(i=0;i<r.end-r.begin+1;i++){
+            printf("%f ",a[r.begin+i]);
+        }
+        printf("\n");
+    }
+    if(binary_search(a,sizeof(a)/sizeof(double),9,10,false,true,&r)>=0){
+        for(i=0;i<r.end-r.begin+1;i++){
+            printf("%f ",a[r.begin+i]);
+        }
+        printf("\n");
+    }
+    if(binary_search(a,sizeof(a)/sizeof(double),10,10,false,false,&r)>=0){
+        for(i=0;i<r.end-r.begin+1;i++){
+            printf("%f ",a[r.begin+i]);
+        }
+        printf("\n");
+    }
+    if(binary_search(a,sizeof(a)/sizeof(double),-1,1,true,true,&r)>=0){
+        for(i=0;i<r.end-r.begin+1;i++){
+            printf("%f ",a[r.begin+i]);
+        }
+        printf("\n");
+    }
+    
     
 
 /*    result res;*/
