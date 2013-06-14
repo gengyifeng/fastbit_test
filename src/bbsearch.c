@@ -585,7 +585,6 @@ size_t flsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,doubl
  * binary search using fseek
  */
 int fbsearch(FILE * fp,size_t offset,size_t size,size_t len,double min,double max,bool min_equal,bool max_equal,result *res){
-   printf("fbsearch\n");
    if( min>max||(min==max)&&(min_equal!=true||max_equal!=true)){
       return -1; 
    }
@@ -639,7 +638,7 @@ int set_begin_end(size_t  *begin, size_t *end,DIMS &dims,cond &conds){
             if(0<=binary_search((double*)(dims.dimvals[i]),dims.shape[i],conds.min[i],conds.max[i],conds.minequal[i],conds.maxequal[i],&res)){
                begin[i]=res.begin;
                end[i]=res.end;
-               printf("set_begin_end begin %d end %d\n",begin[i],end[i]);
+/*               printf("set_begin_end begin %d end %d\n",begin[i],end[i]);*/
             }else{
                 return -1;
             }
@@ -692,6 +691,7 @@ int main(int argc,char ** argv){
     char varname[128]={0};
     char vtypename[128]={0};
     char tempname[128]={0};
+    char outputname[256]={0};
     char **dnames=(char **)calloc(dims_size,sizeof(char *));
     size_t *shape=(size_t *)calloc(dims_size,sizeof(size_t *));
     int *bound=(int *)calloc(dims_size,sizeof(int *));
@@ -727,7 +727,7 @@ int main(int argc,char ** argv){
     bool has_dim_condition=false;
     bool has_var_condition=false;
     init_conditions(&conds,dims_size);
-    for(i=2;i<argc;i=i+3){
+    for(i=2;i<argc;i=i+1){
         if(strcmp(argv[i],"-d")==0){
             for(j=0;j<dims_size;j++){
                 if(0==strcmp(dnames[j],argv[i+1])){
@@ -737,6 +737,7 @@ int main(int argc,char ** argv){
                     break;
                 }
             }
+            i+=2;
         }
         if(strcmp(argv[i],"-v")==0){
             if(strcmp(argv[i+1],varname)!=0){
@@ -745,6 +746,10 @@ int main(int argc,char ** argv){
                 parse_condition(argv[i+2],&min,&min_equal,&max,&max_equal);
                 has_var_condition=true;
             }
+            i+=2;
+        }
+        if(strcmp(argv[i],"-o")==0){
+            strcpy(outputname,argv[i+1]);
         }
     }
     /*parse the input arguments start!*/
@@ -815,11 +820,11 @@ int main(int argc,char ** argv){
     }
     if(has_dim_condition){
         set_begin_end(dbegins,dends,dims,conds);
-        printf("dbegins %d %d %d\n",dbegins[0],dbegins[1],dbegins[2]);
-        printf("dends %d %d %d\n",dends[0],dends[1],dends[2]);
-        for(i=0;i<dims_size;i++){
-            printf("%d %d\n",dbegins[i],dends[i]);
-        }
+/*        printf("dbegins %d %d %d\n",dbegins[0],dbegins[1],dbegins[2]);*/
+/*        printf("dends %d %d %d\n",dends[0],dends[1],dends[2]);*/
+/*        for(i=0;i<dims_size;i++){*/
+/*            printf("%d %d\n",dbegins[i],dends[i]);*/
+/*        }*/
         dset=new std::set<int>();
         block_query(*dset,dbegins,dends,shape,bound,dims_size);
         printf("dset size %d\n",(*dset).size());
@@ -875,11 +880,10 @@ int main(int argc,char ** argv){
                     fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);
                     fread(buff,vsize,res.end-res.begin+1,fp);
                     fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
-                    fread(ibuff,isize,res.end-res.begin+1,fp);
-                    size_t m;
+                    fread(ibuff,isize,res.end-res.begin+1,ifp);
                     get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
-                    for(m=0;m<res.end-res.begin+1;m++){
-                        get_idx_in_block(idx,ibuff[m+res.begin],countdshape,offs,dims_size);
+                    for(j=0;j<res.end-res.begin+1;j++){
+                        get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
                         if(check_dim_condition(idx,dbegins,dends,dims_size)){
                             hits++;
                         }
@@ -889,12 +893,6 @@ int main(int argc,char ** argv){
             
             }
         }else{ //only with dimensional conditions
-            size_t len;
-            if(i!=block_num-1){
-                len=binfo[i+1].boffset-binfo[i].boffset;
-            }else{
-                len=all_size-binfo[i].boffset;
-            }
             if(label!=0){
                 if(i!=pre+1){
                     fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
