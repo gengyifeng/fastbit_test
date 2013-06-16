@@ -1151,7 +1151,8 @@ int main(int argc,char ** argv){
 /*        phits=phits*(dends[i]-dbegins[i]+1);*/
 /*    }*/
     printf("hits %d\n",hits);
-    fclose(ofp);
+    if(need_scan)
+        fclose(ofp);
     
 
     gettimeofday(&read_tbegin,NULL);
