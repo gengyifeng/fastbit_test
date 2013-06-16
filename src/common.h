@@ -165,6 +165,25 @@ int get_type_size(TYPE type){
     }
     return -1;
 }
+int get_nctype_size(nc_type  type){
+    switch(type){
+        case NC_BYTE:
+            return sizeof(char);
+        case NC_SHORT:
+            return sizeof(short);
+        case NC_INT:
+            return sizeof(int);
+/*        case NC_INT64:*/
+/*            return sizeof(long);*/
+        case NC_FLOAT:
+            return sizeof(float);
+        case NC_DOUBLE:
+            return sizeof(double);
+        default:
+            printf("get_nctype_size() unknown type!\n");
+    }
+    return -1;
+}
 int get_block_size(int *bound,size_t *shape,int size){
     int len=1;
     int i;

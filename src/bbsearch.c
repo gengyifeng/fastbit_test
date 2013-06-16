@@ -2,16 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <float.h>
-/*#include <time.h>*/
 #include <sys/time.h>
 #include "common.h"
 #include "rsearch.h"
 /*typedef enum { false, true } bool;*/
-/*#define X 21900*/
-//#define X_LIMIT 100
-/*#define Y 94*/
-/*#define Z 192*/
-#define BLOCK_THRESHOLD 268435456
+#define BLOCK_THRESHOLD 268435456 //256M
 typedef struct condition_t{
     double *min;
     bool *minequal;
@@ -134,6 +129,7 @@ int get_row_size(DIMS *dims,int *cols,int cols_size){
     for(i=0;i<cols_size;i++){
         size+=get_type_size(dims->types[cols[i]]);
     }
+    size+=get_type_size(dims->var_type);
     return size;
 }
 void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
@@ -146,6 +142,35 @@ void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
     }
     sizes[cols_size]=get_type_size(dims->var_type);
     offset[cols_size]=offset[cols_size-1]+get_type_size(dims->var_type);
+}
+inline void write_to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesizes,int *offsets,void *val,int vsize,char * buf){
+    int j;
+    for(j=0;j<col_size;j++){
+        memcpy((char*)(buf+offsets[j]),(char*)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j],typesizes[j]);
+    }
+    memcpy((char*)(buf+offsets[j]),val,vsize);
+}
+inline void print_to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesizes,void *val,char * buf){
+    int j;
+    int buf_pos=0;
+    for(j=0;j<col_size;j++){
+        print_to_buf(buf+buf_pos,dims->types[cols[j]],(char *)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j]); 
+        buf_pos=strlen(buf);
+    }
+    print_to_buf(buf+buf_pos,dims->var_type,val);
+}
+inline void to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesizes,int *offsets,void *val,int vsize,char * buf,int row_size, FILE* ofp,MODE m){
+    if(m==BINARY){
+        write_to_buff(dims,cols,col_size,idx,typesizes,offsets,val,vsize,buf);
+        fwrite(buf,1,row_size,ofp);
+    }else{
+        bzero(buf,row_size*10);
+        print_to_buff(dims,cols,col_size,idx,typesizes,val,buf);
+        buf[strlen(buf)-1]='\n';
+        
+        fwrite(buf,1,strlen(buf),ofp);
+    
+    }
 }
 int block_query(std::set<int> &dblocks,size_t*begins, size_t*ends,size_t *shape,int *bound,int dims_size){
 
@@ -263,8 +288,8 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
             free(typesizes);
         }
     }else{
+        int var_size=get_type_size(dims->var_type);
         if(cols==NULL||cols_size==0){
-            int var_size=get_type_size(dims->var_type);
             for(i=0;i<cres->end-cres->begin+1;i++){
                 for(k=0;k<data[i].repeat;k++){
                     fwrite(&(data[i].val),var_size,1,ofp);
@@ -293,7 +318,7 @@ int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int c
     /*                fprintf(ofp,"%lf,",((double*)(dims->dimvals[cols[j]]))[idx[cols[j]]]);*/
                 }
     /*            fprintf(ofp,"%lf\n",data[i].val); */
-                memcpy((char*)(buf+offsets[j]),&(data[i].val),typesizes[j]);
+                memcpy((char*)(buf+offsets[j]),&(data[i].val),var_size);
 /*                fwrite(buf,1,row_size,ofp);*/
                 }
             }
@@ -551,7 +576,6 @@ int binary_search(const double* data,size_t len,double min,double max,bool min_e
 
 /*       printf("hit number:%ld\n",res->end-res->begin+1);*/
 /*       printf("begin %lf %lf end %lf %lf\n",data[res->begin-1],data[res->begin],data[res->end],data[res->end+1]);*/
-/*       printf("binary_search time:%f\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000);*/
        return 0;
    }
    return -1;
@@ -930,6 +954,10 @@ int main(int argc,char ** argv){
     }
     if(vset==NULL&&dset==NULL){
         if(strcmp(argv[2],"*")==0){
+            dset=new std::set<int>();
+            for(i=0;i<block_num;i++){
+                dset->insert(i);
+            }
             /*to do scan all data*/
 /*            set_begin_end(dbegins,dends,dims,conds);*/
         }else{
@@ -956,11 +984,39 @@ int main(int argc,char ** argv){
     result res;
     size_t len;
     size_t hits=0;
-    int vsize=sizeof(double);// for value
+    int vsize=get_type_size(dims.var_type);// for value
     int isize=sizeof(unsigned int); // for index value
     int label=0;
     int pre=0;
     int retval;
+    size_t avg_block_size=vsize*get_block_size(bound,shape,dims_size);
+    printf("avg_block_size %d\n",avg_block_size);
+    if(avg_block_size<=BLOCK_THRESHOLD){
+        printf("WITHIN BLOCK_THRESHOLD\n");
+    }else{
+        printf("BEYOND BLOCK_THRESHOLD\n");
+    
+    }
+
+    /*init output_pos more to do*/
+/*    MODE m=TEXT;*/
+    MODE m=BINARY;
+    if(strlen(outputname)>0)
+        need_scan=true;
+    FILE *ofp=fopen(outputname,"w");
+    int dsizes[dims_size];
+    int cols[dims_size];
+    int typesizes[dims_size];
+    int offsets[dims_size];
+    int col_size=dims_size;
+    for(i=0;i<dims_size;i++){
+        cols[i]=i;      
+    }
+    get_offsets(offsets,typesizes,&dims,cols,col_size);
+    int row_size=get_row_size(&dims,cols,col_size);
+    int row_buf_size=row_size*10;
+    char *row_buff=(char *)calloc(row_buf_size,sizeof(char));
+
     for(std::set<int>::iterator iter=fset->begin();iter!=fset->end();iter++){
         i=*iter;
         if(i!=block_num-1){
@@ -968,53 +1024,94 @@ int main(int argc,char ** argv){
         }else{
             len=all_size-binfo[i].boffset;
         }
-        if(label!=0){
-            if(i!=pre+1){
-                fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
-                fread(buff,vsize,len,fp);
-                fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                fread(ibuff,isize,len,ifp);
-            }else{
-                fread(buff,vsize,len,fp);
-                fread(ibuff,isize,len,ifp);
-            }
-            pre=i;
-        }else{
-            fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
-            fread(buff,vsize,len,fp);
-            fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-            fread(ibuff,isize,len,ifp);
-/*                printf("binfo offset %d\n",binfo[i].boffset);*/
-/*                printf("test %d %lf\n",ibuff[0],buff[0]);*/
-            pre=i; 
-        }
         if(vset!=NULL){
+            /* read block data*/
+            if(avg_block_size<=BLOCK_THRESHOLD){
+                if(label!=0){
+                    if(i!=pre+1){
+                        fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+                        fread(buff,vsize,len,fp);
+                        fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                        fread(ibuff,isize,len,ifp);
+                    }else{
+                        fread(buff,vsize,len,fp);
+                        fread(ibuff,isize,len,ifp);
+                    }
+                    pre=i;
+                }else{
+                    fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+                    fread(buff,vsize,len,fp);
+                    fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                    fread(ibuff,isize,len,ifp);
+                    pre=i; 
+                }
+                retval=binary_search(buff,len,min,max,min_equal,max_equal,&res);
+            }else{
+                //for large blocks, do bsearch with fseek
+                retval=fbsearch(fp,binfo[i].boffset*vsize,vsize,len,min,max,min_equal,max_equal,&res);
+                
+            }
             if(dset==NULL){
-/*                if(fbsearch(fp,binfo[i].boffset*sizeof(double),sizeof(double),len,min,max,min_equal,max_equal,&res)>=0){*/
-                if(binary_search(buff,len,min,max,min_equal,max_equal,&res)>=0){
-
-/*                fread(buff,sizeof(double),res.end-res.begin+1,fp);*/
+                if(retval>=0){
                     hits+=res.end-res.begin+1;
+                    if(need_scan){
+                        get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
+                        if(avg_block_size<=BLOCK_THRESHOLD){
+
+                        }else{
+                            fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);
+                            fread(buff+res.begin,vsize,res.end-res.begin+1,fp);
+                            fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
+                            fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);
+                        }
+                        for(j=0;j<res.end-res.begin+1;j++){
+                            get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
+                            to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[res.begin+j]),vsize,row_buff,row_size,ofp,m);
+                        }
+                    }
                 }
             }else{
-/*                if(fbsearch(fp,binfo[i].boffset*sizeof(double),sizeof(double),len,min,max,min_equal,max_equal,&res)>=0){*/
-                if(binary_search(buff,len,min,max,min_equal,max_equal,&res)>=0){
-/*                    fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);*/
-/*                    fread(buff,vsize,res.end-res.begin+1,fp);*/
-/*                    fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);*/
-/*                    fread(ibuff,isize,res.end-res.begin+1,ifp);*/
+                if(retval>=0){
                     get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
+                    if(avg_block_size<=BLOCK_THRESHOLD){
+
+                    }else{
+                        fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);
+                        fread(buff+res.begin,vsize,res.end-res.begin+1,fp);
+                        fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
+                        fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);
+                    }
                     for(j=0;j<res.end-res.begin+1;j++){
                         get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
                         if(check_dim_condition(idx,dbegins,dends,dims_size)){
+                            if(need_scan){
+                                to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[res.begin+j]),vsize,row_buff,row_size,ofp,m);
+                            }
                             hits++;
                         }
                     }
 
                 }
-            
             }
         }else{ //only with dimensional conditions
+            if(label!=0){
+                if(i!=pre+1){
+                    fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+                    fread(buff,vsize,len,fp);
+                    fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                    fread(ibuff,isize,len,ifp);
+                }else{
+                    fread(buff,vsize,len,fp);
+                    fread(ibuff,isize,len,ifp);
+                }
+                pre=i;
+            }else{
+                fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+                fread(buff,vsize,len,fp);
+                fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                fread(ibuff,isize,len,ifp);
+                pre=i; 
+            }
             get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
         
             bool contained=true;
@@ -1025,12 +1122,22 @@ int main(int argc,char ** argv){
                 }
             }
             if(contained){
-                hits+=count[0]*countdshape[dims_size-1];
+/*                hits+=count[0]*countdshape[dims_size-1];*/
+                hits+=len;
+                if(need_scan){
+                    for(j=0;j<len;j++){
+                        get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
+                        to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[j]),vsize,row_buff,row_size,ofp,m);
+                    }
+                }
 /*                printf("contained %d\n",count[0]*countdshape[dims_size-1]);*/
             }else{
                 for(j=0;j<len;j++){
                     get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
                     if(check_dim_condition(idx,dbegins,dends,dims_size)){
+                        if(need_scan){
+                            to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[j]),vsize,row_buff,row_size,ofp,m);
+                        }
                         hits++;
                     }
                 }
@@ -1039,119 +1146,19 @@ int main(int argc,char ** argv){
         label++;
 
     }
-    int phits=1;
-    for(i=0;i<dims_size;i++){
-        phits=phits*(dends[i]-dbegins[i]+1);
-    }
-    printf("hits %d in the range of %d\n",hits,phits);
-/*    double a[]={0,0,0,1,1,1,1,2,2,2,2,4,6,7,8,9,9,9,9,10,10};*/
-/*    double a[]={0};*/
-    double a[]={10,10,9,9,9,9,8,7,6,4,2,2,2,2,2,1,1,1,1,0,0,0};
-    result r;
-    if(binary_search(a,sizeof(a)/sizeof(double),0,0,true,true,&r)>=0){
-        for(i=0;i<r.end-r.begin+1;i++){
-            printf("%f ",a[r.begin+i]);
-        }
-        printf("\n");
-    }
-    if(binary_search(a,sizeof(a)/sizeof(double),0,1,false,true,&r)>=0){
-        for(i=0;i<r.end-r.begin+1;i++){
-            printf("%f ",a[r.begin+i]);
-        }
-        printf("\n");
-    }
-    if(binary_search(a,sizeof(a)/sizeof(double),9,10,false,true,&r)>=0){
-        for(i=0;i<r.end-r.begin+1;i++){
-            printf("%f ",a[r.begin+i]);
-        }
-        printf("\n");
-    }
-    if(binary_search(a,sizeof(a)/sizeof(double),10,10,false,false,&r)>=0){
-        for(i=0;i<r.end-r.begin+1;i++){
-            printf("%f ",a[r.begin+i]);
-        }
-        printf("\n");
-    }
-    if(binary_search(a,sizeof(a)/sizeof(double),-1,1,true,true,&r)>=0){
-        for(i=0;i<r.end-r.begin+1;i++){
-            printf("%f ",a[r.begin+i]);
-        }
-        printf("\n");
-    }
-    
-    
-
-/*    result res;*/
-/*    size_t hits=0;*/
-/*    for(i=0;i<block_num;i++){*/
-/*        if(min>binfo[i].max||max<binfo[i].min)*/
-/*            continue;*/
-/*        if((binfo[i].max==min&&!max_equal)||(binfo[i].min==max&&!min_equal))*/
-/*            continue;*/
-/*        size_t len;*/
-/*        if(i!=block_num-1){*/
-/*            len=binfo[i+1].boffset-binfo[i].boffset;*/
-/*        }else{*/
-/*            len=all_size-binfo[i].boffset;*/
-/*        }*/
-/*|+        fseek(bfp,binfo[i].boffset*sizeof(block_info),SEEK_SET);+|*/
-/*|+        fread(buff,sizeof(double),len,fp);+|*/
-/*|+        printf("len=%d\n",len);+|*/
-/*|+        if(binary_search(buff,len, min,max,min_equal,max_equal,&res)>=0){+|*/
-/*|+            hits+=res.end-res.begin+1;+|*/
-/*|+        }+|*/
-/*        if(fbsearch(fp,binfo[i].boffset*sizeof(double),sizeof(double),len,min,max,min_equal,max_equal,&res)>=0){*/
-/*            hits+=res.end-res.begin+1;*/
-/*        }*/
-/*    }*/
-/*    printf("hits %d\n",hits);*/
-    
-    
-/*    fweek(bfp,0,SEEK_SET);*/
-
-/*    fseek(bfp,0,SEEK_END); */
-/*    int bfsize= ftell(bfp);*/
-/*    block_info *binfo=(block_info*)calloc(bfsize/sizeof(block_info),sizeof(block_info));*/
-     
-
-/*    memset(data,0,sizeof(node)*X_LIMIT*Y*Z);*/
-/*    sscanf(argv[2],"%lf,%lf",&min,&max);*/
-/*    printf("%f %f\n",min,max);*/
-/*    fread(data,sizeof(node),X_LIMIT*Y*Z,fp);*/
-/*    fclose(fp);*/
-/*    result res,cres;*/
-/*|+    bsearch(data,X_LIMIT*Y*Z,min,max,min_equal,max_equal,&res);+|*/
-/*    fseek(fp,0,SEEK_END); */
-/*    size_t fsize = ftell(fp);*/
-/*    fbsearch(fp,sizeof(cnode),fsize/sizeof(cnode),min,max,min_equal,max_equal,&cres,&res);*/
-/*|+  free(data);+|*/
-/*    DIMS dims;*/
-/*    int shape[3]={21900,94,192};*/
-/*    TYPE types[3]={DOUBLE,DOUBLE,DOUBLE};*/
-/*    TYPE var_type= DOUBLE;*/
-/*    FILE **fps=(FILE **)calloc(dims_size,sizeof(FILE));*/
+/*    int phits=1;*/
 /*    for(i=0;i<dims_size;i++){*/
-/*        fps[i]=fopen(dnames[i],"r");*/
+/*        phits=phits*(dends[i]-dbegins[i]+1);*/
 /*    }*/
-/*    fps[0]=fopen("time","r");*/
-/*    fps[1]=fopen("LAT","r");*/
-/*    fps[2]=fopen("LON","r");*/
-/*    init_dims(&dims,dims_size,shape,types,var_type,fps);*/
-/*    int cols[3]={0,1,2};*/
-/*    int cols_size=3;*/
-/*    FILE *ofp;*/
+    printf("hits %d\n",hits);
+    fclose(ofp);
+    
+
     gettimeofday(&read_tbegin,NULL);
-/*    if(argc>=4){*/
-/*        ofp=fopen(argv[3],"w");*/
-/*        scan(res.begin,res.end,fp,&dims,NULL,0,ofp,TEXT);*/
-/*        scan(res.begin,res.end,fp,&dims,cols,cols_size,ofp,TEXT);*/
-/*        scan(&cres,&res,fp,ifp,&dims,cols,cols_size,ofp,BINARY);*/
-/*        scan(&cres,&res,fp,ifp,&dims,cols,cols_size,ofp,TEXT);*/
-/*    }*/
     gettimeofday(&read_tend,NULL);
 /*    if(argc>=5)*/
 /*        fclose(ofp);*/
-    destory_dims(&dims);
+/*    destory_dims(&dims);*/
     fclose(fp);
     fclose(ifp);
     fclose(mfp);

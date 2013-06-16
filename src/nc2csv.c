@@ -84,25 +84,6 @@ char *get_type_name(nc_type type){
     }
     return "unknown";
 }
-int get_nctype_size(nc_type  type){
-    switch(type){
-        case NC_BYTE:
-            return sizeof(char);
-        case NC_SHORT:
-            return sizeof(short);
-        case NC_INT:
-            return sizeof(int);
-/*        case NC_INT64:*/
-/*            return sizeof(long);*/
-        case NC_FLOAT:
-            return sizeof(float);
-        case NC_DOUBLE:
-            return sizeof(double);
-        default:
-            printf("get_nctype_size() unknown type!\n");
-    }
-    return -1;
-}
 int main(int argc, char ** argv){
    clock_t begin, end;
    clock_t sort_begin,sort_end;

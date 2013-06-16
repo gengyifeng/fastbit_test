@@ -9,11 +9,6 @@
  * non-zero status. */
 #define ERRCODE 2
 #define ERR(e) {printf("Error: %s\n", nc_strerror(e)); exit(ERRCODE);}
-/*#define FILE_NAME "/media/Soft/t_10.db.1948-2007.daymean.05APR2010.nc"*/
-#define FILE_NAME "t_10.db.1948-2007.daymean.05APR2010.nc"
-/*#define VAR_NAME "T_10_MOD"*/
-/*#define XU 1*/
-
 
 char *get_type_name(nc_type type){
     switch(type){
@@ -32,25 +27,6 @@ char *get_type_name(nc_type type){
             printf("get_type_name() unknown type!\n");
     }
     return "unknown";
-}
-int get_size(nc_type  type){
-    switch(type){
-        case NC_BYTE:
-            return sizeof(char);
-        case NC_SHORT:
-            return sizeof(short);
-        case NC_INT:
-            return sizeof(int);
-/*        case NC_INT64:*/
-/*            return sizeof(long);*/
-        case NC_FLOAT:
-            return sizeof(float);
-        case NC_DOUBLE:
-            return sizeof(double);
-        default:
-            printf("get_size() unknown type!\n");
-    }
-    return -1;
 }
 void nbound(int *bound,int n,int size){
     int i;
@@ -194,7 +170,7 @@ int main(int argc, char ** argv){
    }
    void ** dims_in=(void **)calloc(dims_size,sizeof(void *));
    for(i=0;i<dims_size;i++){
-       dims_in[i]=(void *)calloc(dsizes[i],get_size(dtypes[i]));
+       dims_in[i]=(void *)calloc(dsizes[i],get_nctype_size(dtypes[i]));
        nc_get_var(ncid, dimids[i], dims_in[i],dtypes[i]);
    }
 
@@ -211,7 +187,7 @@ int main(int argc, char ** argv){
    get_new_shape(newshape,bound,dsizes,dims_size);
    get_dshape(newdshape,newshape,dims_size);
    int block_size=get_max_block_size(bound,dsizes,dims_size);
-   int vsize=get_size(vtype);
+   int vsize=get_nctype_size(vtype);
    double * buff=(double *)calloc(block_size,vsize);
    bnode *data=(bnode *)calloc(block_size,sizeof(bnode));
    int block_num=1;
@@ -297,7 +273,7 @@ int main(int argc, char ** argv){
    fwrite(binfo,sizeof(block_info),block_num,fp_binfo);
    
    for(i=0;i<dims_size;i++){
-       fwrite(dims_in[i],get_size(dtypes[i]),dsizes[i],dfp[i]);
+       fwrite(dims_in[i],get_nctype_size(dtypes[i]),dsizes[i],dfp[i]);
    }
    if ((retval = nc_close(ncid)))
       ERR(retval);
