@@ -9,6 +9,7 @@
 /*#define BLOCK_THRESHOLD 268435456 //256M*/
 #define BLOCK_THRESHOLD 2268435456 
 #define BATCH_BUFF_SIZE 16777216 //16M
+#define READ_BUFF_SIZE 16777216 //16M
 /*#define BLOCK_THRESHOLD 1*/
 typedef struct condition_t{
     double *min;
@@ -154,7 +155,7 @@ inline void to_batch_buff(void * buff,size_t *offset,size_t maxsize,void *src, s
         return;
     }
     if(*offset+len>maxsize){
-        fwrite(buff,1,*offset,ofp);
+        fwrite(buff,*offset,1,ofp);
         memcpy((char *)buff,src,len);
         *offset=len;
     }else{
@@ -164,7 +165,7 @@ inline void to_batch_buff(void * buff,size_t *offset,size_t maxsize,void *src, s
 }
 void flush_batch_buff(char *buff, size_t *offset,size_t maxsize,FILE *ofp){
     if(*offset>0){
-        fwrite(buff,1,*offset,ofp);
+        fwrite(buff,*offset,1,ofp);
     }
 }
 inline void write_to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesizes,int *offsets,void *val,int vsize,char * buf,size_t * boffset,FILE *ofp){
@@ -201,6 +202,74 @@ inline void to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesize
     
     }
 }
+size_t pre_id=0;
+size_t post_id=0;
+bool first_read=true;
+inline void read_from_buff(void *buff,size_t i,block_info * binfo,char *read_buff,FILE *fp,int vsize,size_t window_size,size_t block_num,size_t all_size){
+    if(i>post_id||first_read){
+        size_t tail;
+        size_t len;
+        pre_id=i;
+        first_read=false;
+        if(i+window_size<block_num){
+            tail=i+window_size;
+            post_id=tail-1;
+            len=binfo[tail].boffset-binfo[i].boffset;
+
+        }else{
+           tail=block_num; 
+           post_id=tail-1;
+           len=all_size-binfo[i].boffset;
+        }
+/*        printf("i %d offset %d window_size %d pre_id %d post_id %d len %d all_size %d\n",i,binfo[i].boffset, window_size,pre_id,post_id,len,all_size);*/
+        fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+        fread(read_buff,vsize,len,fp);
+/*        fseek(ifp,binfo[i].boffset*isize,SEEK_SET);*/
+/*        fread(iread_buff,isize,len,ifp);*/
+        *(void **)buff=&read_buff[0];
+/*        *(void **)ibuff=&iread_buff[0];*/
+        
+    }else{
+        size_t offset=binfo[i].boffset-binfo[pre_id].boffset;
+/*        printf("i %d offset %d not read window_size %d pre_id %d post_id %d\n",i, offset,window_size,pre_id,post_id);*/
+/*        *(char **)buff=&read_buff[0]+offset*vsize;*/
+/*        *(char **)ibuff=&iread_buff[0]+offset*isize;*/
+        *(void **)buff=&read_buff[offset*vsize];
+/*        *(void **)ibuff=&iread_buff[offset*isize];*/
+/*        printf("address off %d\n",(*(char **)ibuff)-(&iread_buff[0]));*/
+    }
+
+}
+size_t ipre_id=0;
+size_t ipost_id=0;
+bool ifirst_read=true;
+inline void read_from_ibuff(void *ibuff,size_t i,block_info * binfo,char *iread_buff,FILE *ifp,int isize,size_t iwindow_size,size_t block_num,size_t all_size){
+    if(i>ipost_id||ifirst_read){
+        size_t tail;
+        size_t len;
+        ipre_id=i;
+        ifirst_read=false;
+        if(i+iwindow_size<block_num){
+            tail=i+iwindow_size;
+            ipost_id=tail-1;
+            len=binfo[tail].boffset-binfo[i].boffset;
+
+        }else{
+           tail=block_num; 
+           ipost_id=tail-1;
+           len=all_size-binfo[i].boffset;
+        }
+        fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+        fread(iread_buff,isize,len,ifp);
+        *(void **)ibuff=&iread_buff[0];
+        
+    }else{
+        size_t offset=binfo[i].boffset-binfo[ipre_id].boffset;
+        *(void **)ibuff=&iread_buff[offset*isize];
+    }
+
+}
+
 int block_query(std::set<int> &dblocks,size_t*begins, size_t*ends,size_t *shape,int *bound,int dims_size){
 
     int head[dims_size];  
@@ -1029,7 +1098,11 @@ int main(int argc,char ** argv){
         printf("BEYOND BLOCK_THRESHOLD\n");
     
     }
-
+    char *read_buff=(char *)calloc(READ_BUFF_SIZE,sizeof(char));
+    char *iread_buff=(char *)calloc(READ_BUFF_SIZE,sizeof(char));
+    int window_size=READ_BUFF_SIZE/(block_size*vsize);
+    int iwindow_size=READ_BUFF_SIZE/(block_size*isize);
+/*    window_size=1;*/
     /*init output_pos more to do*/
 /*    MODE m=TEXT;*/
     MODE m=BINARY;
@@ -1064,24 +1137,31 @@ int main(int argc,char ** argv){
             /* read block data*/
             if(avg_block_size<=BLOCK_THRESHOLD){
                 gettimeofday(&read_tbegin,NULL);
-                if(label!=0){
-                    if(i!=pre+1){
+                if(window_size>0){
+                    read_from_buff(&buff,i,binfo,read_buff,fp,vsize,window_size,block_num,all_size);
+                    read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
+                }else{
+                    printf("small window size\n");
+                    if(label!=0){
+                        if(i!=pre+1){
+                            fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+                            fread(buff,vsize,len,fp);
+                            fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                            fread(ibuff,isize,len,ifp);
+                        }else{
+                            fread(buff,vsize,len,fp);
+                            fread(ibuff,isize,len,ifp);
+                        }
+                        pre=i;
+                    }else{
                         fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                         fread(buff,vsize,len,fp);
                         fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
                         fread(ibuff,isize,len,ifp);
-                    }else{
-                        fread(buff,vsize,len,fp);
-                        fread(ibuff,isize,len,ifp);
+                        pre=i; 
                     }
-                    pre=i;
-                }else{
-                    fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
-                    fread(buff,vsize,len,fp);
-                    fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                    fread(ibuff,isize,len,ifp);
-                    pre=i; 
                 }
+/*                read_from_buff(buff,ibuff,i,block_info * binfo,max_window,read_buff,iread_buff,fp,ifp);*/
                 gettimeofday(&read_tend,NULL);
                 readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
                 retval=binary_search(buff,len,min,max,min_equal,max_equal,&res);
@@ -1140,23 +1220,29 @@ int main(int argc,char ** argv){
             }
         }else{ //only with dimensional conditions
             gettimeofday(&read_tbegin,NULL);
-            if(label!=0){
-                if(i!=pre+1){
+            if(window_size>0){
+                read_from_buff(&buff,i,binfo,read_buff,fp,vsize,window_size,block_num,all_size);
+                read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
+            }else{
+                printf("small window size\n");
+                if(label!=0){
+                    if(i!=pre+1){
+                        fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
+                        fread(buff,vsize,len,fp);
+                        fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                        fread(ibuff,isize,len,ifp);
+                    }else{
+                        fread(buff,vsize,len,fp);
+                        fread(ibuff,isize,len,ifp);
+                    }
+                    pre=i;
+                }else{
                     fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                     fread(buff,vsize,len,fp);
                     fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
                     fread(ibuff,isize,len,ifp);
-                }else{
-                    fread(buff,vsize,len,fp);
-                    fread(ibuff,isize,len,ifp);
+                    pre=i; 
                 }
-                pre=i;
-            }else{
-                fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
-                fread(buff,vsize,len,fp);
-                fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                fread(ibuff,isize,len,ifp);
-                pre=i; 
             }
             gettimeofday(&read_tend,NULL);
             readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
