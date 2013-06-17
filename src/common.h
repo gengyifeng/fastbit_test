@@ -184,16 +184,16 @@ int get_nctype_size(nc_type  type){
     }
     return -1;
 }
-int get_block_size(int *bound,size_t *shape,int size){
-    int len=1;
+size_t get_block_size(int *bound,size_t *shape,int size){
+    size_t len=1;
     int i;
     for(i=0;i<size;i++){
         len*=shape[i]/bound[i];
     }
     return len;
 }
-int get_max_block_size(int *bound,size_t *shape,int size){
-    int len=1;
+size_t get_max_block_size(int *bound,size_t *shape,int size){
+    size_t len=1;
     int i;
     for(i=0;i<size;i++){
         len*=shape[i]-(shape[i]/bound[i])*(bound[i]-1);

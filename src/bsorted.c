@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
+/*#include <time.h>*/
+#include <sys/time.h>
 #include <netcdf.h>
 #include "common.h"
 #include "rsearch.h"
@@ -126,9 +127,11 @@ int bcompare(const void *a,const void *b){
    if(res==0) return 0;
 }
 int main(int argc, char ** argv){
-   clock_t begin, end;
-   clock_t sort_begin,sort_end;
-   begin=clock();
+/*   clock_t begin, end;*/
+/*   clock_t sort_begin,sort_end;*/
+   struct timeval begin,end;
+   struct timeval sort_begin,sort_end;
+   gettimeofday(&begin,NULL);
    if(argc!=5){
        printf("Usage:%s netcdf_file var_name bound indexing_file\n",argv[0]);
        exit(1);
@@ -228,7 +231,7 @@ int main(int argc, char ** argv){
    vnode *vnodes=(vnode *)calloc(block_num,sizeof(vnode));
    double *vals=(double *)calloc(block_size,sizeof(double));
    unsigned int *idxs =(unsigned int *)calloc(block_size,sizeof(unsigned int));
-
+   double secs=0;
    for(i=0;i<block_num;i++){
 /*       printf("Block num %d\n",i);*/
        get_idx(newidx,i,newdshape,dims_size);
@@ -249,7 +252,12 @@ int main(int argc, char ** argv){
             data[j].idx=j;
             data[j].val=buff[j];
        }
+/*       sort_begin=clock();*/
+       gettimeofday(&sort_begin,NULL);
        qsort(data,count_size,sizeof(bnode),bcompare);
+       gettimeofday(&sort_end,NULL);
+       secs+=sort_end.tv_sec-sort_begin.tv_sec+1.0*(sort_end.tv_usec-sort_begin.tv_usec)/1000000;
+
        for(j=0;j<count_size;j++){
             idxs[j]=data[j].idx;
             vals[j]=data[j].val; 
@@ -257,7 +265,7 @@ int main(int argc, char ** argv){
        binfo[i].boffset=boffset;
        binfo[i].min=data[0].val;
        binfo[i].max=data[count_size-1].val;
-       printf("id %d boffset %d count_size %d block min %lf, max %lf\n",i,boffset, count_size,binfo[i].min,binfo[i].max);
+/*       printf("id %d boffset %d count_size %d block min %lf, max %lf\n",i,boffset, count_size,binfo[i].min,binfo[i].max);*/
        vnodes[i].min=data[0].val;
        vnodes[i].max=data[count_size-1].val;
        vnodes[i].val=i;
@@ -313,12 +321,10 @@ int main(int argc, char ** argv){
 /*        start[0]+=XU;*/
 /*   }*/
 
-   sort_begin=clock();
 /*   qsort(data,X_LIMIT*slen,sizeof(node),compare);*/
-   sort_end=clock();
 /*   fwrite(data,sizeof(node),X_LIMIT*slen,fp);*/
-   end=clock();
-   printf("all time is %fs and sort time is %fs\n",(double)(end-begin)/CLOCKS_PER_SEC,(double)(sort_end-sort_begin)/CLOCKS_PER_SEC);
+   gettimeofday(&end,NULL);
+   printf("all time is %fs and sort time is %fs\n",(end.tv_sec-begin.tv_sec+1.0*(end.tv_usec-begin.tv_usec)/1000000),secs);
 /*   printf("*** SUCCESS reading example file %s!\n", FILE_NAME);*/
    return 0;
 }
