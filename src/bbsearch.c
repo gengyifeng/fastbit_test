@@ -5,6 +5,7 @@
 #include <sys/time.h>
 #include "common.h"
 #include "rsearch.h"
+#include "mapping.h"
 /*typedef enum { false, true } bool;*/
 /*#define BLOCK_THRESHOLD 268435456 //256M*/
 #define BLOCK_THRESHOLD 2268435456 
@@ -77,6 +78,7 @@ inline void get_begin_count_countdshape(size_t *begin,size_t *count,size_t *coun
     size_t idx[dims_size];
     int i;
     get_idx(idx,id,newdshape,dims_size);
+    
     size_t len;
     for(i=0;i<dims_size;i++){
         len=shape[i]/bound[i];
@@ -307,18 +309,38 @@ int block_query(std::set<int> &dblocks,size_t*begins, size_t*ends,size_t *shape,
 /*    printf("dquery size %d\n",all_size);*/
     get_dshape(countdshape,count,dims_size);
     int pos;
+    U_int *g_mask=(U_int *)calloc(dims_size,sizeof(U_int));
+    for(i=0;i<dims_size;i++){
+        g_mask[i]=1<<dims_size-1-i;
+    }
+    Hcode h;
+    h.hcode=(U_int *)calloc(dims_size,sizeof(U_int));
+    Point pt;
+    pt.hcode=(U_int *)calloc(dims_size,sizeof(U_int));
+    
     for(i=0;i<all_size;i++){
        get_idx(idx,i,countdshape,dims_size);
        for(j=0;j<dims_size;j++){
            idx[j]+=head[j];
        }
-       pos=get_index(idx,newdshape,dims_size);
+       bzero(h.hcode,sizeof(U_int)*dims_size);
+       bzero(pt.hcode,sizeof(U_int)*dims_size);
+       for(j=0;j<dims_size;j++){
+           pt.hcode[j]=idx[j];
+       }
+       /*encode Hilbert curve position*/
+       H_encode(h,pt,dims_size,g_mask);
+       pos=h.hcode[0];
+/*       pos=get_index(idx,newdshape,dims_size);*/
        dblocks.insert(pos);
 /*       printf("dquery pos %d\n",pos);*/
     }
-
+    free(h.hcode);
+    free(pt.hcode);
+    free(g_mask);
     return 0;
 }
+inline 
 int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int cols_size,FILE *ofp,MODE m){ 
     struct timeval tbegin,tend;
     struct timeval obegin, oend;
@@ -1051,7 +1073,7 @@ int main(int argc,char ** argv){
 /*        }*/
         dset=new std::set<int>();
         block_query(*dset,dbegins,dends,shape,bound,dims_size);
-        printf("dset size %d\n",(*dset).size());
+/*        printf("dset size %d\n",(*dset).size());*/
     }
     if(vset==NULL&&dset==NULL){
         if(strcmp(argv[2],"*")==0){
@@ -1102,6 +1124,14 @@ int main(int argc,char ** argv){
     char *iread_buff=(char *)calloc(READ_BUFF_SIZE,sizeof(char));
     int window_size=READ_BUFF_SIZE/(block_size*vsize);
     int iwindow_size=READ_BUFF_SIZE/(block_size*isize);
+    U_int *g_mask=(U_int *)calloc(dims_size,sizeof(U_int));
+    for(i=0;i<dims_size;i++){
+        g_mask[i]=1<<dims_size-1-i;
+    }
+    Hcode h;
+    Point pt;
+    h.hcode=(U_int *)calloc(dims_size,sizeof(U_int));
+    pt.hcode=(U_int *)calloc(dims_size,sizeof(U_int));
 /*    window_size=1;*/
     /*init output_pos more to do*/
 /*    MODE m=TEXT;*/
@@ -1127,7 +1157,18 @@ int main(int argc,char ** argv){
         batch_buff=(char *)calloc(BATCH_BUFF_SIZE,sizeof(char));
     }
     for(std::set<int>::iterator iter=fset->begin();iter!=fset->end();iter++){
-        i=*iter;
+/*        i=*iter;*/
+        bzero(h.hcode,sizeof(U_int)*dims_size);
+        bzero(pt.hcode,sizeof(U_int)*dims_size);
+        h.hcode[0]=*iter;
+        H_decode(pt,h,dims_size,g_mask);
+        for(j=0;j<dims_size;j++){
+            idx[j]=pt.hcode[j];
+        }
+        i=get_index(idx,newdshape,dims_size);
+        printf("dset %d\n",i);
+/*        i=pt.hcode[0];*/
+
         if(i!=block_num-1){
             len=binfo[i+1].boffset-binfo[i].boffset;
         }else{

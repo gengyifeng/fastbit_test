@@ -6,6 +6,7 @@
 #include <netcdf.h>
 #include "common.h"
 #include "rsearch.h"
+#include "mapping.h"
 /* Handle errors by printing an error message and exiting with a
  * non-zero status. */
 #define ERRCODE 2
@@ -232,8 +233,27 @@ int main(int argc, char ** argv){
    double *vals=(double *)calloc(block_size,sizeof(double));
    unsigned int *idxs =(unsigned int *)calloc(block_size,sizeof(unsigned int));
    double secs=0;
+   Hcode h;
+   h.hcode=(U_int *)calloc(dims_size,sizeof(U_int));
+   Point pt;
+   pt.hcode=(U_int *)calloc(dims_size,sizeof(U_int));
+   U_int *g_mask=(U_int *)calloc(dims_size,sizeof(U_int));
+   for(i=0;i<dims_size;i++){
+       g_mask[i]=1<< dims_size-1-i;      
+   }
    for(i=0;i<block_num;i++){
 /*       printf("Block num %d\n",i);*/
+/*       h.hcode=(U_int *)calloc(dims_size,sizeof(U_int));*/
+/*       pt.hcode=(U_int *)calloc(dims_size,sizeof(U_int));*/
+       bzero(h.hcode,sizeof(U_int)*dims_size);
+       bzero(pt.hcode,sizeof(U_int)*dims_size);
+       h.hcode[0]=i;
+       H_decode(pt,h,dims_size,g_mask);
+       for(j=0;j<dims_size;j++){
+           newidx[j]=pt.hcode[j];
+           printf("%d ",newidx[j]);
+       }
+       printf("\n");
        get_idx(newidx,i,newdshape,dims_size);
        get_start_count(start,count,newidx,newshape,bound,dsizes,dims_size);
        int count_size=1;
