@@ -4,6 +4,7 @@
 /*#include <time.h>*/
 #include <sys/time.h>
 #include <netcdf.h>
+#include <limits.h>
 #include "common.h"
 #include "rsearch.h"
 #include "mapping.h"
@@ -134,7 +135,10 @@ int main(int argc, char ** argv){
    struct timeval sort_begin,sort_end;
    gettimeofday(&begin,NULL);
    if(argc!=5){
-       printf("Usage:%s netcdf_file var_name bound indexing_file\n",argv[0]);
+       printf("Usage:%s netcdf_file var_name partition indexing_file layout\n",argv[0]);
+       printf("\tEach dimension is divided into the number of partition.\n");
+       printf("\tLayout can be l(linear) or h(hilbert curve), if not specified, layout is chosen by the program.\n");
+       printf("\tYou can check the layout information in the meta file.\n");
        exit(1);
    }
    /* This will be the netCDF ID for the file and data variable. */
@@ -179,7 +183,22 @@ int main(int argc, char ** argv){
    }
 
    int n;
+   LAYOUT ly=HCURVE;
    sscanf(argv[3],"%d",&n);
+   while(n>1){
+       if(n%2!=0){
+           ly=LINEAR;
+           break;
+       }
+       n=n>>1;
+   }
+   if(argc>5){
+       if(strcmp(argv[5],"l")){
+           ly=LINEAR;
+       }else if(strcmp(argv[5],"h")){
+           ly=HCURVE;
+       }
+   }
    size_t *start=(size_t*)calloc(dims_size,sizeof(size_t));
    size_t *count=(size_t*)calloc(dims_size,sizeof(size_t));
    size_t  *countdshape=(size_t *)calloc(dims_size,sizeof(size_t));
@@ -190,7 +209,11 @@ int main(int argc, char ** argv){
    nbound(bound,n,dims_size);
    get_new_shape(newshape,bound,dsizes,dims_size);
    get_dshape(newdshape,newshape,dims_size);
-   int block_size=get_max_block_size(bound,dsizes,dims_size);
+   size_t block_size=get_max_block_size(bound,dsizes,dims_size);
+   if(block_size>ULONG_MAX){
+       printf("index number for a block is beyond the max value of unsigned int\n");
+       exit(1);
+   }
    int vsize=get_nctype_size(vtype);
    double * buff=(double *)calloc(block_size,vsize);
    bnode *data=(bnode *)calloc(block_size,sizeof(bnode));
@@ -224,7 +247,10 @@ int main(int argc, char ** argv){
    }
    fprintf(fp_meta,"Variable\tType\n");
    fprintf(fp_meta,"%s\t%s\n",vname,get_type_name(vtype));
-   fprintf(fp_meta,"Block Arrangement=linear\n");
+   if(ly==LINEAR)
+       fprintf(fp_meta,"Block Arrangement=linear\n");
+   if(ly==HCURVE)
+       fprintf(fp_meta,"Block Arrangement=hcurve\n");
    size_t boffset=0;
    block_info *binfo=(block_info *)calloc(block_num,sizeof(block_info));
 /*   int max_level=get_max_level(block_num);*/
@@ -242,19 +268,19 @@ int main(int argc, char ** argv){
        g_mask[i]=1<< dims_size-1-i;      
    }
    for(i=0;i<block_num;i++){
-/*       printf("Block num %d\n",i);*/
-/*       h.hcode=(U_int *)calloc(dims_size,sizeof(U_int));*/
-/*       pt.hcode=(U_int *)calloc(dims_size,sizeof(U_int));*/
-       bzero(h.hcode,sizeof(U_int)*dims_size);
-       bzero(pt.hcode,sizeof(U_int)*dims_size);
-       h.hcode[0]=i;
-       H_decode(pt,h,dims_size,g_mask);
-       for(j=0;j<dims_size;j++){
-           newidx[j]=pt.hcode[j];
-           printf("%d ",newidx[j]);
+       if(ly==HCURVE){
+           bzero(h.hcode,sizeof(U_int)*dims_size);
+           bzero(pt.hcode,sizeof(U_int)*dims_size);
+           h.hcode[0]=i;
+           H_decode(pt,h,dims_size,g_mask);
+           for(j=0;j<dims_size;j++){
+               newidx[j]=pt.hcode[j];
+    /*           printf("%d ",newidx[j]);*/
+           }
+    /*       printf("\n");*/
+       }else{
+           get_idx(newidx,i,newdshape,dims_size);
        }
-       printf("\n");
-       get_idx(newidx,i,newdshape,dims_size);
        get_start_count(start,count,newidx,newshape,bound,dsizes,dims_size);
        int count_size=1;
        for(j=0;j<dims_size;j++){

@@ -29,7 +29,7 @@ typedef struct block_info_t{
 
 typedef enum {BYTE, SHORT, INT, LONG,FLOAT,DOUBLE,UNKNOWN} TYPE;
 typedef enum {TEXT, BINARY} MODE;
-typedef enum {LINEAR, HCURVE} BLOCK_MODE;
+typedef enum {LINEAR, HCURVE} LAYOUT;
 
 typedef struct dims_t{
    TYPE* types;

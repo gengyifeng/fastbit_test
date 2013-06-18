@@ -20,6 +20,7 @@ typedef struct condition_t{
     bool *valid; 
     int size;
 }cond;
+LAYOUT ly;
 /*struct timeval rbegin,rend;*/
 /*void init_cond(DIMS dims,){*/
 /*    int i;*/
@@ -323,15 +324,18 @@ int block_query(std::set<int> &dblocks,size_t*begins, size_t*ends,size_t *shape,
        for(j=0;j<dims_size;j++){
            idx[j]+=head[j];
        }
-       bzero(h.hcode,sizeof(U_int)*dims_size);
-       bzero(pt.hcode,sizeof(U_int)*dims_size);
-       for(j=0;j<dims_size;j++){
-           pt.hcode[j]=idx[j];
+       if(ly==HCURVE){
+           bzero(h.hcode,sizeof(U_int)*dims_size);
+           bzero(pt.hcode,sizeof(U_int)*dims_size);
+           for(j=0;j<dims_size;j++){
+               pt.hcode[j]=idx[j];
+           }
+           /*encode Hilbert curve position*/
+           H_encode(h,pt,dims_size,g_mask);
+           pos=h.hcode[0];
+       }else{
+           pos=get_index(idx,newdshape,dims_size);
        }
-       /*encode Hilbert curve position*/
-       H_encode(h,pt,dims_size,g_mask);
-       pos=h.hcode[0];
-/*       pos=get_index(idx,newdshape,dims_size);*/
        dblocks.insert(pos);
 /*       printf("dquery pos %d\n",pos);*/
     }
@@ -958,11 +962,10 @@ int main(int argc,char ** argv){
     memset(line,0,sizeof(line));
     fgets(line,sizeof(line),mfp);
     sscanf(line,"Block arrangement=%s",tempname);
-    BLOCK_MODE bmode; 
     if(!strcmp(tempname,"linear")){
-        bmode=LINEAR;
+        ly=LINEAR;
     }else if(!strcmp(tempname,"hcurve")){
-        bmode=HCURVE;
+        ly=HCURVE;
     }
     /* parse the bmeta file end!*/ 
 
@@ -1157,17 +1160,18 @@ int main(int argc,char ** argv){
         batch_buff=(char *)calloc(BATCH_BUFF_SIZE,sizeof(char));
     }
     for(std::set<int>::iterator iter=fset->begin();iter!=fset->end();iter++){
-/*        i=*iter;*/
-        bzero(h.hcode,sizeof(U_int)*dims_size);
-        bzero(pt.hcode,sizeof(U_int)*dims_size);
-        h.hcode[0]=*iter;
-        H_decode(pt,h,dims_size,g_mask);
-        for(j=0;j<dims_size;j++){
-            idx[j]=pt.hcode[j];
+        if(ly==HCURVE){
+            bzero(h.hcode,sizeof(U_int)*dims_size);
+            bzero(pt.hcode,sizeof(U_int)*dims_size);
+            h.hcode[0]=*iter;
+            H_decode(pt,h,dims_size,g_mask);
+            for(j=0;j<dims_size;j++){
+                idx[j]=pt.hcode[j];
+            }
+            i=get_index(idx,newdshape,dims_size);
+        }else{
+            i=*iter;
         }
-        i=get_index(idx,newdshape,dims_size);
-        printf("dset %d\n",i);
-/*        i=pt.hcode[0];*/
 
         if(i!=block_num-1){
             len=binfo[i+1].boffset-binfo[i].boffset;
@@ -1182,7 +1186,7 @@ int main(int argc,char ** argv){
                     read_from_buff(&buff,i,binfo,read_buff,fp,vsize,window_size,block_num,all_size);
                     read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
                 }else{
-                    printf("small window size\n");
+/*                    printf("small window size\n");*/
                     if(label!=0){
                         if(i!=pre+1){
                             fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
