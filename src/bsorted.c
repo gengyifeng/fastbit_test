@@ -12,6 +12,7 @@
  * non-zero status. */
 #define ERRCODE 2
 #define ERR(e) {printf("Error: %s\n", nc_strerror(e)); exit(ERRCODE);}
+#define WRITE_BUFF_SIZE 16777216 //16M
 
 char *get_type_name(nc_type type){
     switch(type){
@@ -134,7 +135,7 @@ int main(int argc, char ** argv){
    struct timeval begin,end;
    struct timeval sort_begin,sort_end;
    gettimeofday(&begin,NULL);
-   if(argc!=5){
+   if(argc<5){
        printf("Usage:%s netcdf_file var_name partition indexing_file layout\n",argv[0]);
        printf("\tEach dimension is divided into the number of partition.\n");
        printf("\tLayout can be l(linear) or h(hilbert curve), if not specified, layout is chosen by the program.\n");
@@ -185,17 +186,18 @@ int main(int argc, char ** argv){
    int n;
    LAYOUT ly=HCURVE;
    sscanf(argv[3],"%d",&n);
-   while(n>1){
-       if(n%2!=0){
+   int nt=n;
+   while(nt>1){
+       if(nt%2!=0){
            ly=LINEAR;
            break;
        }
-       n=n>>1;
+       nt=nt>>1;
    }
    if(argc>5){
-       if(strcmp(argv[5],"l")){
+       if(strcmp(argv[5],"l")==0){
            ly=LINEAR;
-       }else if(strcmp(argv[5],"h")){
+       }else if(strcmp(argv[5],"h")==0){
            ly=HCURVE;
        }
    }
@@ -246,10 +248,13 @@ int main(int argc, char ** argv){
    FILE **dfp=(FILE **)calloc(dims_size,sizeof(FILE *));
    fprintf(fp_meta,"Dimension size=%d\n",dims_size);
    fprintf(fp_meta,"Dimension\tType\tLength\tPartition\n");
-   char tname[128]={0};
+   char tname[256]={0};
    for(i=0;i<dims_size;i++){
        fprintf(fp_meta,"%s\t%s\t%d\t%d\n",dnames[i],get_type_name(dtypes[i]),dsizes[i],bound[i]);
-       dfp[i]=fopen(dnames[i],"w");
+       bzero(tname,sizeof(tname));
+       sprintf(tname,"%s.%s",argv[4],dnames[i]);
+/*       dfp[i]=fopen(dnames[i],"w");*/
+       dfp[i]=fopen(tname,"w");
    }
    fprintf(fp_meta,"Variable\tType\n");
    fprintf(fp_meta,"%s\t%s\n",vname,get_type_name(vtype));
@@ -264,7 +269,21 @@ int main(int argc, char ** argv){
    vnode *vnodes=(vnode *)calloc(block_num,sizeof(vnode));
    double *vals=(double *)calloc(block_size,sizeof(double));
    unsigned int *idxs =(unsigned int *)calloc(block_size,sizeof(unsigned int));
+   char *vals_batch_buff=(char *)calloc(WRITE_BUFF_SIZE,sizeof(char));
+   char *idxs_batch_buff=(char *)calloc(WRITE_BUFF_SIZE,sizeof(char));
+   bool use_batch=true;
+   bool iuse_batch=true;
+   if(block_size*sizeof(double)>=WRITE_BUFF_SIZE){
+       use_batch=false;
+   }
+   if(block_size*sizeof(unsigned int)>=WRITE_BUFF_SIZE){
+       iuse_batch=false;
+   }
+   size_t off=0;
+   size_t ioff=0;
    double secs=0;
+   double writetime=0;
+   double readtime=0;
    Hcode h;
    h.hcode=(U_int *)calloc(dims_size,sizeof(U_int));
    Point pt;
@@ -296,8 +315,11 @@ int main(int argc, char ** argv){
 /*           printf("count[%d]=%d\n",j,count[j]);*/
        }
 /*       printf("count_size %d\n",count_size);*/
+       gettimeofday(&sort_begin,NULL);
        if ((retval = nc_get_vara(ncid, varid,start,count,buff,vtype)))
           ERR(retval);
+       gettimeofday(&sort_end,NULL);
+       readtime+=sort_end.tv_sec-sort_begin.tv_sec+1.0*(sort_end.tv_usec-sort_begin.tv_usec)/1000000;
 /*       get_dshape(countdshape,count,dims_size);*/
        for(j=0;j<count_size;j++){
 /*           get_idx(newidx,j,countdshape,dims_size);*/
@@ -322,15 +344,33 @@ int main(int argc, char ** argv){
        vnodes[i].max=data[count_size-1].val;
        vnodes[i].val=i;
 /*       fwrite(&boffset,sizeof(size_t),1,fp_boffset);*/
-       fwrite(idxs,sizeof(unsigned int),count_size,fp_idx);
+       gettimeofday(&sort_begin,NULL);
+       if(iuse_batch){
+            to_batch_buff(idxs_batch_buff,&ioff,WRITE_BUFF_SIZE,idxs,sizeof(unsigned int)*count_size,fp_idx);
+       }else{
+           fwrite(idxs,sizeof(unsigned int),count_size,fp_idx);
+       }
 /*       if(i==0)*/
 /*           printf("test %d %lf\n",idxs[0],vals[0]);*/
-       fwrite(vals,sizeof(double),count_size,fp);
+       if(use_batch){
+            to_batch_buff(vals_batch_buff,&off,WRITE_BUFF_SIZE,vals,sizeof(double)*count_size,fp);
+       }else{
+           fwrite(vals,sizeof(double),count_size,fp);
+       }
+       gettimeofday(&sort_end,NULL);
+       writetime+=sort_end.tv_sec-sort_begin.tv_sec+1.0*(sort_end.tv_usec-sort_begin.tv_usec)/1000000;
        boffset+=count_size;
    }
+   gettimeofday(&sort_begin,NULL);
+   if(iuse_batch)
+       flush_batch_buff(idxs_batch_buff,&ioff,WRITE_BUFF_SIZE,fp_idx);
+   if(use_batch)
+       flush_batch_buff(vals_batch_buff,&off,WRITE_BUFF_SIZE,fp);
 /*   fwrite(&max_level,sizeof(int),1,fp_tidx);*/
    fwrite(vnodes,sizeof(vnode),block_num,fp_tidx);
    fwrite(binfo,sizeof(block_info),block_num,fp_binfo);
+   gettimeofday(&sort_end,NULL);
+   writetime+=sort_end.tv_sec-sort_begin.tv_sec+1.0*(sort_end.tv_usec-sort_begin.tv_usec)/1000000;
    
    for(i=0;i<dims_size;i++){
        fwrite(dims_in[i],get_nctype_size(dtypes[i]),dsizes[i],dfp[i]);
@@ -376,7 +416,7 @@ int main(int argc, char ** argv){
 /*   qsort(data,X_LIMIT*slen,sizeof(node),compare);*/
 /*   fwrite(data,sizeof(node),X_LIMIT*slen,fp);*/
    gettimeofday(&end,NULL);
-   printf("all time is %fs and sort time is %fs\n",(end.tv_sec-begin.tv_sec+1.0*(end.tv_usec-begin.tv_usec)/1000000),secs);
+   printf("all time is %lfs and sort time is %lfs and write_time is %lf and read time is %lf\n",(end.tv_sec-begin.tv_sec+1.0*(end.tv_usec-begin.tv_usec)/1000000),secs,writetime,readtime);
 /*   printf("*** SUCCESS reading example file %s!\n", FILE_NAME);*/
    return 0;
 }

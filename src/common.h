@@ -281,4 +281,24 @@ int nc_get_var(int ncid,int varid,void *buff,nc_type type){
     }
     return retval;
 }
+
+inline void to_batch_buff(void * buff,size_t *offset,size_t maxsize,void *src, size_t len,FILE *ofp){
+    if(len>maxsize){
+        printf("batch_buff size is %d, but the data size is %d!\n",maxsize,len);
+        return;
+    }
+    if(*offset+len>maxsize){
+        fwrite(buff,*offset,1,ofp);
+        memcpy((char *)buff,src,len);
+        *offset=len;
+    }else{
+        memcpy((char *)buff+*offset,src,len);
+        *offset+=len;
+    }
+}
+void flush_batch_buff(char *buff, size_t *offset,size_t maxsize,FILE *ofp){
+    if(*offset>0){
+        fwrite(buff,*offset,1,ofp);
+    }
+}
 #endif

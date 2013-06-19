@@ -261,9 +261,9 @@ int generator(const char* fname,char *dimnames[],char *varname,size_t * shapes,i
 int main(int argc,char *argv[]){
 /*    size_t shapes[3]={60,120,240};*/
 /*    size_t shapes[3]={4096,1024,256};*/
-    size_t shapes[3]={2048,1024,512};
-/*    size_t shapes[3]={10,10,10};*/
-/*    size_t shapes[3]={1024,512,256};*/
+/*    size_t shapes[3]={2048,1024,512};*/
+/*    size_t shapes[3]={8,8,8};*/
+    size_t shapes[3]={1024,512,256};
     TYPE var_type=DOUBLE;
     TYPE types[3]={DOUBLE,DOUBLE,DOUBLE};
     int dim_size=3;

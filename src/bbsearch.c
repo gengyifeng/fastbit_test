@@ -8,9 +8,12 @@
 #include "mapping.h"
 /*typedef enum { false, true } bool;*/
 /*#define BLOCK_THRESHOLD 268435456 //256M*/
-#define BLOCK_THRESHOLD 2268435456 
+#define BLOCK_THRESHOLD 22268435456 
 #define BATCH_BUFF_SIZE 16777216 //16M
-#define READ_BUFF_SIZE 16777216 //16M
+/*#define READ_BUFF_SIZE 16777216 //16M*/
+/*#define READ_BUFF_SIZE 8388608 //8M*/
+#define READ_BUFF_SIZE 262144 //8M
+/*#define READ_BUFF_SIZE 1*/
 /*#define BLOCK_THRESHOLD 1*/
 typedef struct condition_t{
     double *min;
@@ -152,25 +155,25 @@ void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
         offset[cols_size]=offset[cols_size-1]+get_type_size(dims->var_type);
 }
 
-inline void to_batch_buff(void * buff,size_t *offset,size_t maxsize,void *src, size_t len,FILE *ofp){
-    if(len>maxsize){
-        printf("batch_buff size is %d, but the data size is %d!\n",maxsize,len);
-        return;
-    }
-    if(*offset+len>maxsize){
-        fwrite(buff,*offset,1,ofp);
-        memcpy((char *)buff,src,len);
-        *offset=len;
-    }else{
-        memcpy((char *)buff+*offset,src,len);
-        *offset+=len;
-    }
-}
-void flush_batch_buff(char *buff, size_t *offset,size_t maxsize,FILE *ofp){
-    if(*offset>0){
-        fwrite(buff,*offset,1,ofp);
-    }
-}
+/*inline void to_batch_buff(void * buff,size_t *offset,size_t maxsize,void *src, size_t len,FILE *ofp){*/
+/*    if(len>maxsize){*/
+/*        printf("batch_buff size is %d, but the data size is %d!\n",maxsize,len);*/
+/*        return;*/
+/*    }*/
+/*    if(*offset+len>maxsize){*/
+/*        fwrite(buff,*offset,1,ofp);*/
+/*        memcpy((char *)buff,src,len);*/
+/*        *offset=len;*/
+/*    }else{*/
+/*        memcpy((char *)buff+*offset,src,len);*/
+/*        *offset+=len;*/
+/*    }*/
+/*}*/
+/*void flush_batch_buff(char *buff, size_t *offset,size_t maxsize,FILE *ofp){*/
+/*    if(*offset>0){*/
+/*        fwrite(buff,*offset,1,ofp);*/
+/*    }*/
+/*}*/
 inline void write_to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesizes,int *offsets,void *val,int vsize,char * buf,size_t * boffset,FILE *ofp){
     int j;
     for(j=0;j<col_size;j++){
@@ -901,6 +904,7 @@ int main(int argc,char ** argv){
     struct timeval tbegin, tend;
     struct timeval read_tbegin,read_tend;
     double readtime=0;
+    double decodetime=0;
     gettimeofday(&tbegin,NULL);
 /*    int X_LIMIT;*/
 /*    sscanf(argv[1],"%d",&X_LIMIT);*/
@@ -920,6 +924,13 @@ int main(int argc,char ** argv){
 /*    }*/
 
 /*    node* data=(node*)calloc(sizeof(node),X_LIMIT*Y*Z);*/
+    if(argc<3){
+        printf("Usage :%s array_file -d dim_name \"[dmin,dmax]\" -v var_name \"[vmin,vmax]\" -o output_file\n",argv[0]);
+        printf("\tYou can give zero or several dimension ranges\n");
+        printf("\tYou can use %s array_file *. to scan all the array\n",argv[0]);
+        printf("\tIf -o and output_file is not specified, then the program only print the hit number\n");
+        exit(1);
+    }
 
     FILE *fp=fopen(argv[1],"r");
     char ifilename[128]={0};
@@ -1057,10 +1068,15 @@ int main(int argc,char ** argv){
     size_t *dends=(size_t *)calloc(dims_size,sizeof(size_t));
     DIMS dims;
     FILE **fps;
+    char tname[256]={0};
     if(has_dim_condition||need_scan){
         fps=(FILE **)calloc(dims_size,sizeof(FILE*));
         for(i=0;i<dims_size;i++){
             fps[i]=fopen(dnames[i],"r");
+            bzero(tname,sizeof(tname));
+            sprintf(tname,"%s.%s",argv[1],dnames[i]);
+            fps[i]=fopen(tname,"r");
+/*            fps[i]=fopen(dnames[i],"r");*/
         }
         init_dims(&dims,dims_size,shape,types,var_type,fps);
         for(i=0;i<dims_size;i++){
@@ -1075,8 +1091,12 @@ int main(int argc,char ** argv){
 /*            printf("%d %d\n",dbegins[i],dends[i]);*/
 /*        }*/
         dset=new std::set<int>();
+        
+        gettimeofday(&read_tbegin,NULL);
         block_query(*dset,dbegins,dends,shape,bound,dims_size);
-/*        printf("dset size %d\n",(*dset).size());*/
+        gettimeofday(&read_tend,NULL);
+        decodetime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
+        printf("dset size %d\n",(*dset).size());
     }
     if(vset==NULL&&dset==NULL){
         if(strcmp(argv[2],"*")==0){
@@ -1116,7 +1136,7 @@ int main(int argc,char ** argv){
     int pre=0;
     int retval;
     size_t avg_block_size=vsize*get_block_size(bound,shape,dims_size);
-    printf("avg_block_size %d\n",avg_block_size);
+    printf("avg_block_size %ld\n",avg_block_size);
     if(avg_block_size<=BLOCK_THRESHOLD){
         printf("WITHIN BLOCK_THRESHOLD\n");
     }else{
@@ -1127,6 +1147,9 @@ int main(int argc,char ** argv){
     char *iread_buff=(char *)calloc(READ_BUFF_SIZE,sizeof(char));
     int window_size=READ_BUFF_SIZE/(block_size*vsize);
     int iwindow_size=READ_BUFF_SIZE/(block_size*isize);
+    if(window_size==0||iwindow_size==0){
+        printf("small window size\n");
+    }
     U_int *g_mask=(U_int *)calloc(dims_size,sizeof(U_int));
     for(i=0;i<dims_size;i++){
         g_mask[i]=1<<dims_size-1-i;
@@ -1160,6 +1183,7 @@ int main(int argc,char ** argv){
         batch_buff=(char *)calloc(BATCH_BUFF_SIZE,sizeof(char));
     }
     for(std::set<int>::iterator iter=fset->begin();iter!=fset->end();iter++){
+        gettimeofday(&read_tbegin,NULL);
         if(ly==HCURVE){
             bzero(h.hcode,sizeof(U_int)*dims_size);
             bzero(pt.hcode,sizeof(U_int)*dims_size);
@@ -1172,6 +1196,8 @@ int main(int argc,char ** argv){
         }else{
             i=*iter;
         }
+        gettimeofday(&read_tend,NULL);
+        decodetime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
 
         if(i!=block_num-1){
             len=binfo[i+1].boffset-binfo[i].boffset;
@@ -1186,7 +1212,6 @@ int main(int argc,char ** argv){
                     read_from_buff(&buff,i,binfo,read_buff,fp,vsize,window_size,block_num,all_size);
                     read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
                 }else{
-/*                    printf("small window size\n");*/
                     if(label!=0){
                         if(i!=pre+1){
                             fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
@@ -1269,7 +1294,6 @@ int main(int argc,char ** argv){
                 read_from_buff(&buff,i,binfo,read_buff,fp,vsize,window_size,block_num,all_size);
                 read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
             }else{
-                printf("small window size\n");
                 if(label!=0){
                     if(i!=pre+1){
                         fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
@@ -1349,6 +1373,6 @@ int main(int argc,char ** argv){
 /*    fclose(ofp);*/
     gettimeofday(&tend,NULL);
 /*    printf("all time is %fs and scan time is %fs\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000);*/
-    printf("all time is %fs and scan time is %fs\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,readtime);
+    printf("all time is %lfs and read time is %lfs and decode time is %lf\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,readtime,decodetime);
     return 0;
 }
