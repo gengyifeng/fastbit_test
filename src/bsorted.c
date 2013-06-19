@@ -208,6 +208,12 @@ int main(int argc, char ** argv){
    int *bound=(int *)calloc(dims_size,sizeof(int));
    nbound(bound,n,dims_size);
    get_new_shape(newshape,bound,dsizes,dims_size);
+   for(i=0;i<dims_size;i++){
+       if(newshape[i]!=n){
+           ly=LINEAR;
+           break;
+       }
+   }
    get_dshape(newdshape,newshape,dims_size);
    size_t block_size=get_max_block_size(bound,dsizes,dims_size);
    if(block_size>ULONG_MAX){

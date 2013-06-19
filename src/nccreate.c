@@ -2,12 +2,15 @@
 #include <stdlib.h>
 #include <netcdf.h>
 #include <math.h>
+#include <string.h>
 #include "common.h"
 #define BAIL(e) do{ \
     printf("ERROR:: file: %s, line: %d, func: %s, code: %s.\n",__FILE__,__LINE__,__FUNCTION__, nc_strerror(e)); \
     return e;\
 } while(0)
 
+typedef enum {RANDOM, LOCALITY} GMODE;
+GMODE gm;
 inline void random(void *res,double min,double max,TYPE type){
    double f=1.0*rand()/RAND_MAX;
    switch(type){
@@ -135,12 +138,30 @@ void init_dimvar(void *data,size_t len,TYPE type){
    }
 }
 
-inline void init_var_locality(void *data,size_t len,size_t offset,TYPE type){
-   size_t i;
+inline void init_var_locality(void *data,size_t len,size_t offset,size_t *dshapes,int dims_size,double shift,size_t max_pos,TYPE type){
+   size_t i,j;
    int size=get_type_size(type);
+   size_t idx[dims_size];
+   double min,max;
+   size_t pos;
    for(i=0;i<len;i++){
-/*       random(((char *)data+i*size),min,max,type);*/
-       getval(((char *)data+i*size),i+offset,type);
+       get_idx(idx,i,dshapes,dims_size);
+       idx[0]+=offset;
+       pos=0;
+       for(j=0;j<dims_size;j++){
+           pos+=idx[j]+1;
+       }
+       min=1.0*(pos-max_pos*shift)/max_pos;
+       max=1.0*(pos+max_pos*shift)/max_pos;
+/*       printf("%lf %lf %d\n",min,max,max_pos);*/
+       if(min<0){
+           min=0;
+       }
+       if(max>1){
+           max=1;
+       }
+       random(((char *)data+i*size),min,max,type);
+/*       getval(((char *)data+i*size),i+offset,type);*/
 /*       *(double *)data=i;*/
    }
 }
@@ -154,7 +175,7 @@ inline void init_var(void *data,size_t len,double min, double max,TYPE type){
    }
 }
 /*void generator(const char* fname,int * shapes,int *types,int dim_size,TYPE var_type){*/
-int generator(const char* fname,char *dimnames[],char *varname,int * shapes,int dim_size,TYPE *types,TYPE var_type){
+int generator(const char* fname,char *dimnames[],char *varname,size_t * shapes,int dim_size,TYPE *types,TYPE var_type){
     int res;    
     int ncid,vlid;
     int *dimids=(int *)calloc(dim_size,sizeof(int));
@@ -164,13 +185,14 @@ int generator(const char* fname,char *dimnames[],char *varname,int * shapes,int 
     double coverage=1.0;
 /*    char *dim_names[]={"d1","d2","d3"};*/
     size_t total_size=1;
-
+    size_t max_pos=0;
     int i; 
     for(i=0;i<dim_size;i++){
         total_size*=shapes[i];
+        max_pos+=shapes[i];
     }
-    double min=0;
-    double max=coverage;
+/*    double min=0;*/
+/*    double max=coverage;*/
 /*    TYPE types[3]={DOUBLE,DOUBLE,DOUBLE};*/
     if((res=nc_create(fname,NC_CLOBBER|NC_64BIT_OFFSET,&ncid)))
         BAIL(res);
@@ -209,21 +231,27 @@ int generator(const char* fname,char *dimnames[],char *varname,int * shapes,int 
     }
     size_t *start=(size_t *)calloc(dim_size,sizeof(size_t));
     size_t *count=(size_t *)calloc(dim_size,sizeof(size_t));
-/*    size_t *countdshape=(size_t *)calloc(dims_size,sizeof(size_t));*/
+    size_t *dshape=(size_t *)calloc(dim_size,sizeof(size_t));
     size_t ustart[1]={0};
     size_t ucount[1]={1};
     for(i=1;i<dim_size;i++){ 
         count[i]=shapes[i];
     }
     count[0]=1;
-/*    getdshape(countdshape,count,dims_size);*/
+    get_dshape(dshape,shapes,dim_size);
+    double shift=0.01;
     for(i=0;i<shapes[0];i++){
         start[0]=i;
         ustart[0]=i;
         getval(((char *)udata),i,types[0]);
         nc_put_vara(types[0],ncid,dimids[0],ustart,ucount,udata);
-        init_var(buffer,total_size/shapes[0],min,max,var_type);
-/*        init_var_locality(buffer,total_size/shapes[0],i*(total_size/shapes[0]),var_type);*/
+        if(gm==RANDOM)
+            init_var(buffer,total_size/shapes[0],0,1,var_type);
+        if(gm==LOCALITY){
+/*            printf("locality");*/
+/*            init_var_locality(buffer,total_size/shapes[0],i*(total_size/shapes[0]),var_type);*/
+            init_var_locality(buffer,total_size/shapes[0],i,dshape,dim_size,shift,max_pos,var_type);
+        }
         nc_put_vara(var_type,ncid,vlid,start,count,buffer);
     }
     if((res=nc_close(ncid)))
@@ -231,14 +259,30 @@ int generator(const char* fname,char *dimnames[],char *varname,int * shapes,int 
     return 0;
 }
 int main(int argc,char *argv[]){
-/*    int shapes[3]={60,120,240};*/
-/*    int shapes[3]={4096,1024,256};*/
-    int shapes[3]={1024,512,256};
+/*    size_t shapes[3]={60,120,240};*/
+/*    size_t shapes[3]={4096,1024,256};*/
+    size_t shapes[3]={2048,1024,512};
+/*    size_t shapes[3]={10,10,10};*/
+/*    size_t shapes[3]={1024,512,256};*/
     TYPE var_type=DOUBLE;
     TYPE types[3]={DOUBLE,DOUBLE,DOUBLE};
     int dim_size=3;
     char *dimnames[3]={"d1","d2","d3"};
     char *varname="v1";
+    gm=RANDOM;
+    if(argc==1){
+        printf("Usage: %s netcdf_file value_mode.\n",argv[0]);
+        printf("\tvalue_mode can be r(random) or l(locality), r is used when value_mode is not specified.\n");
+        exit(1);
+    }
+    if(argc>2){
+        if(strcmp(argv[2],"r")==0){
+            gm=RANDOM;
+        }
+        if(strcmp(argv[2],"l")==0){
+            gm=LOCALITY;
+        }
+    }
     generator(argv[1],dimnames,varname,shapes,dim_size,types,var_type);   
     return 0;
 }
