@@ -2,7 +2,7 @@ LIB_HOME:=/home/yifeng/lib
 HEAD:=-I $(LIB_HOME)/include
 LIB:=-L $(LIB_HOME)/lib -lnetcdf -lsnappy -Wl,-rpath=$(LIB_HOME)/lib
 CC:=g++
-CFLAGS:= -g $(HEAD) $(LIB)
+CFLAGS:= -O3 $(HEAD) $(LIB)
 CXXFLAGS:= -O3 $(HEAD) $(LIB)
 
 #Find files containing main function
@@ -41,11 +41,13 @@ szip:
 	$(CC) $(patsubst %,%.c,$@) $^ -o $@ $(CFLAGS) 
 nccreate:
 	$(CC) $(patsubst %,%.c,$@) $^ -o $@ $(CFLAGS) 
-bsorted:
+mapping.o:mapping.c
+	$(CC) -c $< -o $@ $(HEAD)
+bsorted:mapping.o
 	$(CC) $(patsubst %,%.c,$@) $^ -o $@ $(CFLAGS) 
 rsearch.o:rsearch.c
 	$(CC) -c $< -o $@ $(HEAD)
-bbsearch:rsearch.o
+bbsearch:rsearch.o mapping.o
 	$(CC) $(patsubst %,%.c,$@) $^ -o $@ $(CFLAGS) 
 
 #$(ALL_BIN):$(NONEXEOBJECTS)
