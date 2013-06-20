@@ -9,10 +9,11 @@
 /*typedef enum { false, true } bool;*/
 /*#define BLOCK_THRESHOLD 268435456 //256M*/
 #define BLOCK_THRESHOLD 22268435456 
+/*#define BLOCK_THRESHOLD 1 */
 #define BATCH_BUFF_SIZE 16777216 //16M
 /*#define READ_BUFF_SIZE 16777216 //16M*/
-/*#define READ_BUFF_SIZE 8388608 //8M*/
-#define READ_BUFF_SIZE 262144 //8M
+#define READ_BUFF_SIZE 8388608 //8M
+/*#define READ_BUFF_SIZE 262144 //256K*/
 /*#define READ_BUFF_SIZE 1*/
 /*#define BLOCK_THRESHOLD 1*/
 typedef struct condition_t{
@@ -488,7 +489,7 @@ inline int compare(const void *a,const void *b){
 /*
  * binary search for left bound using in-memory array
 */
-size_t lsearch(const double* data,size_t len,double val,bool equal){
+inline size_t lsearch(const double* data,size_t len,double val,bool equal){
 /*    printf("lsearch\n");*/
     int lp=0;
     int rp=len-1;
@@ -539,7 +540,7 @@ size_t lsearch(const double* data,size_t len,double val,bool equal){
 /*
  * binary search for right bound using in-memory array
 */
-size_t rsearch(const double* data,size_t len,double val,bool equal){
+inline size_t rsearch(const double* data,size_t len,double val,bool equal){
 /*    printf("rsearch\n");*/
     int lp=0;
     int rp=len-1;
@@ -586,7 +587,7 @@ size_t rsearch(const double* data,size_t len,double val,bool equal){
 /*
  * reverse binary search for left bound using in-memory array
 */
-size_t reverse_lsearch(const double* data,size_t len,double val,bool equal){
+inline size_t reverse_lsearch(const double* data,size_t len,double val,bool equal){
 /*    printf("lsearch\n");*/
     int lp=0;
     int rp=len-1;
@@ -636,7 +637,7 @@ size_t reverse_lsearch(const double* data,size_t len,double val,bool equal){
 /*
  * reverse binary search for right bound using in-memory array
 */
-size_t reverse_rsearch(const double* data,size_t len,double val,bool equal){
+inline size_t reverse_rsearch(const double* data,size_t len,double val,bool equal){
 /*    printf("rsearch\n");*/
     int lp=0;
     int rp=len-1;
@@ -683,7 +684,7 @@ size_t reverse_rsearch(const double* data,size_t len,double val,bool equal){
 /*
  * binary search using in-memory array
 */
-int binary_search(const double* data,size_t len,double min,double max,bool min_equal,bool max_equal,result * res){
+inline int binary_search(const double* data,size_t len,double min,double max,bool min_equal,bool max_equal,result * res){
    if( min>max||(min==max)&&(min_equal!=true||max_equal!=true)){
       return -1; 
    }
@@ -723,7 +724,7 @@ inline void read_from_file_with_offset(FILE * fp,size_t offset,size_t size,size_
 /*
  * binary search for left bound using fseek
 */
-size_t flsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,double val,bool equal){
+inline size_t flsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,double val,bool equal){
 /*    printf("lsearch\n");*/
     int lp=0;
     int rp=len-1;
@@ -779,7 +780,7 @@ size_t flsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,doubl
 /*
  * binary search for right bound using fseek
 */
-size_t frsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,double val,bool equal){
+inline size_t frsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,double val,bool equal){
 /*    printf("rsearch\n");*/
     int lp=0;
     int rp=len-1;
@@ -832,7 +833,7 @@ size_t frsearch_with_offset(FILE * fp,size_t offset,size_t size,size_t len,doubl
 /*
  * binary search using fseek
  */
-int fbsearch(FILE * fp,size_t offset,size_t size,size_t len,double min,double max,bool min_equal,bool max_equal,result *res){
+inline int fbsearch(FILE * fp,size_t offset,size_t size,size_t len,double min,double max,bool min_equal,bool max_equal,result *res){
    if( min>max||(min==max)&&(min_equal!=true||max_equal!=true)){
       return -1; 
    }
@@ -905,6 +906,7 @@ int main(int argc,char ** argv){
     struct timeval read_tbegin,read_tend;
     double readtime=0;
     double decodetime=0;
+    double bsearchtime=0;
     gettimeofday(&tbegin,NULL);
 /*    int X_LIMIT;*/
 /*    sscanf(argv[1],"%d",&X_LIMIT);*/
@@ -1103,6 +1105,8 @@ int main(int argc,char ** argv){
             dset=new std::set<int>();
             for(i=0;i<block_num;i++){
                 dset->insert(i);
+                dbegins[i]=0;
+                dends[i]=shape[i]-1;
             }
             /*to do scan all data*/
 /*            set_begin_end(dbegins,dends,dims,conds);*/
@@ -1234,15 +1238,39 @@ int main(int argc,char ** argv){
 /*                read_from_buff(buff,ibuff,i,block_info * binfo,max_window,read_buff,iread_buff,fp,ifp);*/
                 gettimeofday(&read_tend,NULL);
                 readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
+                gettimeofday(&read_tbegin,NULL);
                 retval=binary_search(buff,len,min,max,min_equal,max_equal,&res);
+                gettimeofday(&read_tend,NULL);
+                bsearchtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
             }else{
                 //for large blocks, do bsearch with fseek
+                gettimeofday(&read_tbegin,NULL);
                 retval=fbsearch(fp,binfo[i].boffset*vsize,vsize,len,min,max,min_equal,max_equal,&res);
+                gettimeofday(&read_tend,NULL);
+                bsearchtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
                 
             }
             if(dset==NULL){
                 if(retval>=0){
+/*                    gettimeofday(&read_tbegin,NULL);*/
+/*                        for(j=0;j<len;j++){*/
+/*                            if(buff[j]>=min&&buff[j]<=max){*/
+/*                                hits++;*/
+/*                            }*/
+/*                            if((buff[j]==min&&!min_equal)||buff[j]==max&&!max_equal){*/
+/*                                hits--;*/
+/*                            }*/
+/*                        }*/
+/*                    gettimeofday(&read_tend,NULL);*/
+/*                    bsearchtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;*/
                     hits+=res.end-res.begin+1;
+/*                        gettimeofday(&read_tbegin,NULL);*/
+/*                        fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);*/
+/*                        fread(buff+res.begin,vsize,res.end-res.begin+1,fp);*/
+/*                        fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);*/
+/*                        fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);*/
+/*                        gettimeofday(&read_tend,NULL);*/
+/*                        readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;*/
                     if(need_scan){
                         get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
                         gettimeofday(&read_tbegin,NULL);
@@ -1373,6 +1401,6 @@ int main(int argc,char ** argv){
 /*    fclose(ofp);*/
     gettimeofday(&tend,NULL);
 /*    printf("all time is %fs and scan time is %fs\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000);*/
-    printf("all time is %lfs and read time is %lfs and decode time is %lf\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,readtime,decodetime);
+    printf("all time is %lfs and read time is %lfs and decode time is %lf and bsearch time is %lf\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,readtime,decodetime,bsearchtime);
     return 0;
 }
