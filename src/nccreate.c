@@ -138,21 +138,27 @@ void init_dimvar(void *data,size_t len,TYPE type){
    }
 }
 
-inline void init_var_locality(void *data,size_t len,size_t offset,size_t *dshapes,int dims_size,double shift,size_t max_pos,TYPE type){
+inline void init_var_locality(void *data,size_t len,size_t offset,size_t *shape,size_t *dshapes,int dims_size,double shift,TYPE type){
    size_t i,j;
    int size=get_type_size(type);
    size_t idx[dims_size];
    double min,max;
    size_t pos;
+   double center=1;
    for(i=0;i<len;i++){
        get_idx(idx,i,dshapes,dims_size);
        idx[0]+=offset;
-       pos=0;
        for(j=0;j<dims_size;j++){
-           pos+=idx[j]+1;
+            center*=1.0*(idx[j]+1)/shape[j];
        }
-       min=1.0*(pos-max_pos*shift)/max_pos;
-       max=1.0*(pos+max_pos*shift)/max_pos;
+       min=1.0*(pow(center,1.0/3)-shift);
+       max=1.0*(pow(center,1.0/3)+shift);
+/*       pos=0;*/
+/*       for(j=0;j<dims_size;j++){*/
+/*           pos+=idx[j]+1;*/
+/*       }*/
+/*       min=1.0*(pos-max_pos*shift)/max_pos;*/
+/*       max=1.0*(pos+max_pos*shift)/max_pos;*/
 /*       printf("%lf %lf %d\n",min,max,max_pos);*/
        if(min<0){
            min=0;
@@ -239,7 +245,8 @@ int generator(const char* fname,char *dimnames[],char *varname,size_t * shapes,i
     }
     count[0]=1;
     get_dshape(dshape,shapes,dim_size);
-    double shift=0.01;
+    double shift=0;
+/*    double shift=0.01;*/
     for(i=0;i<shapes[0];i++){
         start[0]=i;
         ustart[0]=i;
@@ -250,7 +257,7 @@ int generator(const char* fname,char *dimnames[],char *varname,size_t * shapes,i
         if(gm==LOCALITY){
 /*            printf("locality");*/
 /*            init_var_locality(buffer,total_size/shapes[0],i*(total_size/shapes[0]),var_type);*/
-            init_var_locality(buffer,total_size/shapes[0],i,dshape,dim_size,shift,max_pos,var_type);
+            init_var_locality(buffer,total_size/shapes[0],i,shapes,dshape,dim_size,shift,var_type);
         }
         nc_put_vara(var_type,ncid,vlid,start,count,buffer);
     }
