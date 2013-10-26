@@ -30,12 +30,12 @@ void init_rnodes(rnode *nodes,int pos, double min,double max,int level,vnode * v
 /*        }*/
     }else{
         int i=0;
-        for(std::tr1::unordered_set<int>::iterator iter=nodes[left].vset.begin();iter!=nodes[left].vset.end();iter++){
+        for(unordered_set<int>::iterator iter=nodes[left].vset.begin();iter!=nodes[left].vset.end();iter++){
             nodes[pos].vset.insert(*iter);
 /*            nodes[pos].vals[i++]=*iter;*/
         }
         i=0;
-        for(std::tr1::unordered_set<int>::iterator iter=nodes[right].vset.begin();iter!=nodes[right].vset.end();iter++){
+        for(unordered_set<int>::iterator iter=nodes[right].vset.begin();iter!=nodes[right].vset.end();iter++){
             nodes[pos].vset.insert(*iter);
 /*            nodes[pos].vals[i++]=*iter;*/
         }
@@ -57,13 +57,13 @@ void rquery(std::set<int> &vset,double min,double max,rnode* nodes,int pos,int l
         return; 
 /*    printf("pos %d level %d pmin %lf pmax %lf min %lf max %lf size %d\n",pos,level,min,max,nodes[pos].min,nodes[pos].max,nodes[pos].size);*/
     if(level==max_level){
-        for(std::tr1::unordered_set<int>::iterator iter=nodes[pos].vset.begin();iter!=nodes[pos].vset.end();iter++){
+        for(unordered_set<int>::iterator iter=nodes[pos].vset.begin();iter!=nodes[pos].vset.end();iter++){
             vset.insert(*iter);
         }
         return;
     }
     if(nodes[pos].min>=min&&nodes[pos].max<=max){
-        for(std::tr1::unordered_set<int>::iterator iter=nodes[pos].vset.begin();iter!=nodes[pos].vset.end();iter++){
+        for(unordered_set<int>::iterator iter=nodes[pos].vset.begin();iter!=nodes[pos].vset.end();iter++){
             vset.insert(*iter);
         }
         if(min!=nodes[pos].min&&level!=0)
