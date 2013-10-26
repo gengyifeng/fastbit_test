@@ -3,8 +3,12 @@
 #include <string.h>
 #include <time.h>
 #include <netcdf.h>
+//#include <limits.h>
+#include <float.h>
 #include "common.h"
 #include "rsearch.h"
+#include <unordered_set>
+using namespace std;
 /* Handle errors by printing an error message and exiting with a
  * non-zero status. */
 #define ERRCODE 2
@@ -138,21 +142,33 @@ int main(int argc, char ** argv){
    }
    count[0]=1;
    get_dshape(dshape,dsizes,dims_size);
-   size_t hits=0;
+   unordered_set<double> uniques;
+//   size_t hits=0;
+   double min=DBL_MAX;
+   double max=-DBL_MAX;
    for(i=0;i<dsizes[0];i++){
        start[0]=i;
        nc_get_vara(ncid,varid,start,count,buff,vtype);
        for(j=0;j<all_size/dsizes[0];j++){
             get_idx(idx,j,dshape,dims_size);
             idx[0]+=i;
-            if(((double *)buff)[j]>=0.1&&((double *)buff)[j]<=0.4){
-                hits++;
+            if(((double *)buff)[j]<min)
+                min=((double *)buff)[j];
+            if(((double *)buff)[j]>max)
+                max=((double *)buff)[j];
+            if(uniques.find(((double *)buff)[j])==uniques.end()){
+                uniques.insert(((double *)buff)[j]);
             }
+//            if(((double *)buff)[j]>=0.1&&((double *)buff)[j]<=0.4){
+//                hits++;
+//            }
 /*            printf("i %d j %d idx[0] %d idx[1] %d idx[2] %d\n",i,j,idx[0],idx[1],idx[2]);*/
 //            print_row(dims_in,dims_size,idx,dtypes,sizes,buff,j,vtype,var_size);
        }
    }
-   printf("hits %d\n",hits);
+//   printf("hits %d\n",hits);
+   printf("min=%f max=%f\n",min,max);
+   printf("unique ratio=%f\n",uniques.size()*1.0/all_size);
    if ((retval = nc_close(ncid)))
       ERR(retval);
 

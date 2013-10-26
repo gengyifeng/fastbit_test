@@ -36,6 +36,30 @@ inline void random(void *res,double min,double max,TYPE type){
            printf("unknown types in random()!\n");
    }
 }
+inline void setval(void *res,double val,TYPE type){
+   switch(type){
+        case(BYTE):
+           *(unsigned char*)res=(unsigned char)(val);
+           break;
+        case(SHORT):
+           *(short*)res=(short)(val);
+           break;
+        case(INT):
+           *(int*)res=(int)(val);
+           break;
+        case(LONG):
+           *(long*)res=(long)(val);
+           break;
+        case(FLOAT):
+           *(float*)res=(float)(val);
+           break;
+        case(DOUBLE):
+           *(double*)res=(double)(val);
+           break;
+        default:
+           printf("unknown types in setval()!\n");
+   }
+}
 inline void getval(void *res,size_t val,TYPE type){
    switch(type){
         case(BYTE):
@@ -148,11 +172,12 @@ inline void init_var_locality(void *data,size_t len,size_t offset,size_t *shape,
    for(i=0;i<len;i++){
        get_idx(idx,i,dshapes,dims_size);
        idx[0]+=offset;
+       center=1;
        for(j=0;j<dims_size;j++){
             center*=1.0*(idx[j]+1)/shape[j];
        }
-       min=1.0*(pow(center,1.0/3)-shift);
-       max=1.0*(pow(center,1.0/3)+shift);
+/*       min=1.0*(pow(center,1.0/3)-shift);*/
+/*       max=1.0*(pow(center,1.0/3)+shift);*/
 /*       pos=0;*/
 /*       for(j=0;j<dims_size;j++){*/
 /*           pos+=idx[j]+1;*/
@@ -160,13 +185,16 @@ inline void init_var_locality(void *data,size_t len,size_t offset,size_t *shape,
 /*       min=1.0*(pos-max_pos*shift)/max_pos;*/
 /*       max=1.0*(pos+max_pos*shift)/max_pos;*/
 /*       printf("%lf %lf %d\n",min,max,max_pos);*/
-       if(min<0){
-           min=0;
-       }
-       if(max>1){
-           max=1;
-       }
-       random(((char *)data+i*size),min,max,type);
+/*       if(min<0){*/
+/*           min=0;*/
+/*       }*/
+/*       if(max>1){*/
+/*           max=1;*/
+/*       }*/
+/*       random(((char *)data+i*size),min,max,type);*/
+         double val=pow(center,1.0/3);
+/*       double val=center;*/
+         setval(((char *)data+i*size),val,type);
 /*       getval(((char *)data+i*size),i+offset,type);*/
 /*       *(double *)data=i;*/
    }
@@ -268,9 +296,9 @@ int generator(const char* fname,char *dimnames[],char *varname,size_t * shapes,i
 int main(int argc,char *argv[]){
 /*    size_t shapes[3]={60,120,240};*/
 /*    size_t shapes[3]={4096,1024,256};*/
-/*    size_t shapes[3]={2048,1024,512};*/
+    size_t shapes[3]={2048,1024,512};
 /*    size_t shapes[3]={8,8,8};*/
-    size_t shapes[3]={1024,512,256};
+/*    size_t shapes[3]={1024,512,256};*/
     TYPE var_type=DOUBLE;
     TYPE types[3]={DOUBLE,DOUBLE,DOUBLE};
     int dim_size=3;

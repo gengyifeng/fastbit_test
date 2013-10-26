@@ -2,16 +2,22 @@
 #define RESARCH_H
 #include <stdio.h>
 #include <stdlib.h>
+//#include <unordered_set>
 #include <set>
 #include <algorithm>
+#ifdef __GNUC__
+#include <tr1/unordered_set>
+#else
+#include <unordered_set>
+#endif
 using namespace std;
 typedef struct rnode_t{
     double min;
     double max;
     int level;
-    std::set<int> vset;
-    int size;
-    int *vals;
+    std::tr1::unordered_set<int> vset;
+//    int size;
+//    int *vals;
 }rnode;
 
 typedef struct vnode_t{

@@ -11,8 +11,8 @@
 #define BLOCK_THRESHOLD 22268435456 
 /*#define BLOCK_THRESHOLD 1 */
 #define BATCH_BUFF_SIZE 16777216 //16M
-/*#define READ_BUFF_SIZE 16777216 //16M*/
-#define READ_BUFF_SIZE 8388608 //8M
+#define READ_BUFF_SIZE 16777216 //16M
+/*#define READ_BUFF_SIZE 8388608 //8M*/
 /*#define READ_BUFF_SIZE 262144 //256K*/
 /*#define READ_BUFF_SIZE 1*/
 /*#define BLOCK_THRESHOLD 1*/
@@ -906,6 +906,7 @@ int main(int argc,char ** argv){
     struct timeval read_tbegin,read_tend;
     double readtime=0;
     double decodetime=0;
+    double indextime=0;
     double bsearchtime=0;
     gettimeofday(&tbegin,NULL);
 /*    int X_LIMIT;*/
@@ -986,6 +987,7 @@ int main(int argc,char ** argv){
     cond conds;
     bool has_dim_condition=false;
     bool has_var_condition=false;
+    bool no_tree_index=false;
     init_conditions(&conds,dims_size);
     for(i=2;i<argc;i=i+1){
         if(strcmp(argv[i],"-d")==0){
@@ -1011,6 +1013,9 @@ int main(int argc,char ** argv){
         if(strcmp(argv[i],"-o")==0){
             strcpy(outputname,argv[i+1]);
         }
+        if(strcmp(argv[i],"-nt")==0){
+           no_tree_index=true; 
+        }
     }
     if(strlen(outputname)>0)
         need_scan=true;
@@ -1029,6 +1034,7 @@ int main(int argc,char ** argv){
         block_num*=newshape[i];
         all_size*=shape[i];
     }
+
     block_info *binfo=(block_info*)calloc(block_num,sizeof(block_info));
     fread(binfo,sizeof(block_info),block_num,bfp);
 /*    for(i=0;i<8;i++){*/
@@ -1041,31 +1047,44 @@ int main(int argc,char ** argv){
     std::set<int> *dset=NULL;
     std::set<int> *fset=NULL;
     if(has_var_condition){
+        gettimeofday(&read_tbegin,NULL);
+        if(!no_tree_index){
+            vnode vns[block_num];
+        /*    vnode *vns=(vnode*)calloc(block_num,sizeof(vnode));*/
+            double gmin=DBL_MAX,gmax=DBL_MIN;
+            for(i=0;i<block_num;i++){
+                if(binfo[i].min<gmin)
+                    gmin=binfo[i].min;
+                if(binfo[i].max>gmax)
+                    gmax=binfo[i].max;
+                vns[i].min=binfo[i].min;
+                vns[i].max=binfo[i].max;
+                vns[i].val=i;
+        /*        printf("block_id %d min %lf max %lf\n",i,binfo[i].min,binfo[i].max);*/
+            }  
+            int max_level=10;
+            int rnodes_size=get_tree_size(max_level);
+        /*    printf("max_level %d rnodes_size %d\n",max_level,rnodes_size);*/
+            rnode rnodes[rnodes_size];
+            init_rnodes(rnodes,0,gmin,gmax,0,vns,block_num,max_level);
 
-        vnode vns[block_num];
-    /*    vnode *vns=(vnode*)calloc(block_num,sizeof(vnode));*/
-        double gmin=DBL_MAX,gmax=DBL_MIN;
-        for(i=0;i<block_num;i++){
-            if(binfo[i].min<gmin)
-                gmin=binfo[i].min;
-            if(binfo[i].max>gmax)
-                gmax=binfo[i].max;
-            vns[i].min=binfo[i].min;
-            vns[i].max=binfo[i].max;
-            vns[i].val=i;
-    /*        printf("block_id %d min %lf max %lf\n",i,binfo[i].min,binfo[i].max);*/
-        }  
-        int max_level=10;
-        int rnodes_size=get_tree_size(max_level);
-    /*    printf("max_level %d rnodes_size %d\n",max_level,rnodes_size);*/
-        rnode rnodes[rnodes_size];
-        init_rnodes(rnodes,0,gmin,gmax,0,vns,block_num,max_level);
+            vset=new std::set<int>();
 
-        vset=new std::set<int>();
-
-        rquery(*vset,min,max,rnodes,0,0,max_level);
-        printf("vset size %d\n",(*vset).size());
+            rquery(*vset,min,max,rnodes,0,0,max_level);
+            printf("vset size %d\n",(*vset).size());
+        }else{
+           vset=new std::set<int>();
+           for(i=0;i<block_num;i++){
+               if(!(binfo[i].min>max||binfo[i].max<min)){
+                   vset->insert(i);
+               }
+           }
+           printf("vset size %d\n",(*vset).size());
+        }
+        gettimeofday(&read_tend,NULL);
+        indextime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
     }
+
     size_t *dbegins=(size_t *)calloc(dims_size,sizeof(size_t));
     size_t *dends=(size_t *)calloc(dims_size,sizeof(size_t));
     DIMS dims;
@@ -1401,6 +1420,6 @@ int main(int argc,char ** argv){
 /*    fclose(ofp);*/
     gettimeofday(&tend,NULL);
 /*    printf("all time is %fs and scan time is %fs\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000);*/
-    printf("all time is %lfs and read time is %lfs and decode time is %lf and bsearch time is %lf\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,readtime,decodetime,bsearchtime);
+    printf("all time is %lfs\nread time is %lfs\ntree index time is %lfs\ndecode time is %lfs\nbsearch time is %lfs\n\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,readtime,indextime,decodetime,bsearchtime);
     return 0;
 }
