@@ -486,228 +486,6 @@ inline int compare(const void *a,const void *b){
    if(res==0) return 0;
 }
 
-/*
- * binary search for left bound using in-memory array
-*/
-inline size_t lsearch(const double* data,size_t len,double val,bool equal){
-/*    printf("lsearch\n");*/
-    int lp=0;
-    int rp=len-1;
-    int mid;
-    while(rp>lp){
-        mid=rp-((rp-lp)>>1);
-/*        printf("mid %d\n",mid);*/
-        if(data[mid]>=val)
-            rp=mid-1;
-        else
-            lp=mid;
-/*        printf("lsearch %d %d %d\n",lp,mid ,rp);*/
-    }
-/*    printf("rp %d val %lf\n",rp,data[rp].val);*/
-    double tmp=data[lp];
-    if(lp==0){
-        if(equal&&tmp==val){
-            return 0;
-        }
-        if(val<tmp)
-            return 0;
-    }
-    int i;
-/*    printf("%f\n",data[lp]);*/
-    for(i=lp+1;i<len;i++){
-        if(data[i]>tmp){
-            if(data[i]==val){
-               if(equal){
-                    return i;
-               }else{
-                    tmp=data[i];
-                    while(i<len){
-                        if(data[i]>tmp){
-                            return i;
-                        }
-                        i++;
-                    }
-                    return -1;
-               }
-            }else{
-                return i;
-            }
-        }
-    }
-    return -1;
-}
-
-/*
- * binary search for right bound using in-memory array
-*/
-inline size_t rsearch(const double* data,size_t len,double val,bool equal){
-/*    printf("rsearch\n");*/
-    int lp=0;
-    int rp=len-1;
-    int mid;
-    while(rp>lp){
-        mid=lp+((rp-lp)>>1);
-        if(data[mid]>val)
-            rp=mid;
-        else
-            lp=mid+1;
-    }
-    double tmp=data[rp];
-    if(rp==len-1){
-        if(equal&&tmp==val){
-            return rp;
-        }
-        if(val>tmp){
-            return rp;
-        }
-    }
-    int i;
-    for(i=rp-1;i>=0;i--){
-        if(data[i]<tmp){
-            if(data[i]==val){
-               if(equal){
-                    return i;
-               }else{
-                    tmp=data[i];
-                    while(i>=0){
-                        if(data[i]<tmp){
-                            return i;
-                        }
-                        i--;
-                    }
-                    return -1;
-               }
-            }else{
-                return i;
-            }
-        }
-    }
-    return -1;
-}
-/*
- * reverse binary search for left bound using in-memory array
-*/
-inline size_t reverse_lsearch(const double* data,size_t len,double val,bool equal){
-/*    printf("lsearch\n");*/
-    int lp=0;
-    int rp=len-1;
-    int mid;
-    while(rp>lp){
-        mid=rp-((rp-lp)>>1);
-/*        printf("mid %d\n",mid);*/
-        if(data[mid]<=val)
-            rp=mid-1;
-        else
-            lp=mid;
-/*        printf("lsearch %d %d %d\n",lp,mid ,rp);*/
-    }
-/*    printf("lp %d val %lf\n",rp,data[lp]);*/
-    double tmp=data[lp];
-    if(lp==0){
-        if(equal&&tmp==val){
-            return 0;
-        }
-        if(val>tmp)
-            return 0;
-    }
-    int i;
-/*    printf("%f\n",data[lp]);*/
-    for(i=lp+1;i<len;i++){
-        if(data[i]<tmp){
-            if(data[i]==val){
-               if(equal){
-                    return i;
-               }else{
-                    tmp=data[i];
-                    while(i<len){
-                        if(data[i]<tmp){
-                            return i;
-                        }
-                        i++;
-                    }
-                    return -1;
-               }
-            }else{
-                return i;
-            }
-        }
-    }
-    return -1;
-}
-/*
- * reverse binary search for right bound using in-memory array
-*/
-inline size_t reverse_rsearch(const double* data,size_t len,double val,bool equal){
-/*    printf("rsearch\n");*/
-    int lp=0;
-    int rp=len-1;
-    int mid;
-    while(rp>lp){
-        mid=lp+((rp-lp)>>1);
-        if(data[mid]<val)
-            rp=mid;
-        else
-            lp=mid+1;
-    }
-    double tmp=data[rp];
-    if(rp==len-1){
-        if(equal&&tmp==val){
-            return rp;
-        }
-        if(val<tmp){
-            return rp;
-        }
-    }
-    int i;
-    for(i=rp-1;i>=0;i--){
-        if(data[i]>tmp){
-            if(data[i]==val){
-               if(equal){
-                    return i;
-               }else{
-                    tmp=data[i];
-                    while(i>=0){
-                        if(data[i]>tmp){
-                            return i;
-                        }
-                        i--;
-                    }
-                    return -1;
-               }
-            }else{
-                return i;
-            }
-        }
-    }
-    return -1;
-}
-/*
- * binary search using in-memory array
-*/
-inline int binary_search(const double* data,size_t len,double min,double max,bool min_equal,bool max_equal,result * res){
-   if( min>max||(min==max)&&(min_equal!=true||max_equal!=true)){
-      return -1; 
-   }
-   struct timeval tbegin,tend;
-   gettimeofday(&tbegin,NULL);
-/*   printf("min %lf max %lf len %d\n",min,max,len);*/
-   if(data[len-1]>=data[0]){
-       res->begin=lsearch(data,len,min,min_equal);
-       res->end=rsearch(data,len,max,max_equal);
-   }else{
-       res->begin=reverse_lsearch(data,len,max,max_equal);
-       res->end=reverse_rsearch(data,len,min,min_equal);
-   }
-/*   printf("res %d %d\n",res->begin,res->end);*/
-   gettimeofday(&tend,NULL);
-   if(res->begin!=-1&&res->end!=-1&&res->end>=res->begin){
-
-/*       printf("hit number:%ld\n",res->end-res->begin+1);*/
-/*       printf("begin %lf %lf end %lf %lf\n",data[res->begin-1],data[res->begin],data[res->end],data[res->end+1]);*/
-       return 0;
-   }
-   return -1;
-}
 
 
 /*
@@ -907,6 +685,7 @@ int main(int argc,char ** argv){
     double readtime=0;
     double decodetime=0;
     double indextime=0;
+    double rsearchtime=0;
     double bsearchtime=0;
     gettimeofday(&tbegin,NULL);
 /*    int X_LIMIT;*/
@@ -975,7 +754,7 @@ int main(int argc,char ** argv){
     var_type=get_type(vtypename);
     memset(line,0,sizeof(line));
     fgets(line,sizeof(line),mfp);
-    sscanf(line,"Block arrangement=%s",tempname);
+    sscanf(line,"Block Arrangement=%s",tempname);
     if(!strcmp(tempname,"linear")){
         ly=LINEAR;
     }else if(!strcmp(tempname,"hcurve")){
@@ -1069,8 +848,13 @@ int main(int argc,char ** argv){
             init_rnodes(rnodes,0,gmin,gmax,0,vns,block_num,max_level);
 
             vset=new std::set<int>();
-
+            
+            struct timeval tmpbegin, tmpend;
+            gettimeofday(&tmpbegin,NULL);
             rquery(*vset,min,max,rnodes,0,0,max_level);
+            gettimeofday(&tmpend,NULL);
+            
+            rsearchtime+=tmpend.tv_sec-tmpbegin.tv_sec+1.0*(tmpend.tv_usec-tmpbegin.tv_usec)/1000000;
             printf("vset size %d\n",(*vset).size());
         }else{
            vset=new std::set<int>();
@@ -1205,6 +989,7 @@ int main(int argc,char ** argv){
         row_buff=(char *)calloc(row_buf_size,sizeof(char));
         batch_buff=(char *)calloc(BATCH_BUFF_SIZE,sizeof(char));
     }
+    int hpos;
     for(std::set<int>::iterator iter=fset->begin();iter!=fset->end();iter++){
         gettimeofday(&read_tbegin,NULL);
         if(ly==HCURVE){
@@ -1215,7 +1000,8 @@ int main(int argc,char ** argv){
             for(j=0;j<dims_size;j++){
                 idx[j]=pt.hcode[j];
             }
-            i=get_index(idx,newdshape,dims_size);
+            i=*iter;
+            hpos=get_index(idx,newdshape,dims_size);
         }else{
             i=*iter;
         }
@@ -1259,6 +1045,7 @@ int main(int argc,char ** argv){
                 readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
                 gettimeofday(&read_tbegin,NULL);
                 retval=binary_search(buff,len,min,max,min_equal,max_equal,&res);
+/*                printf("begin %d, end %d\n",res.begin,res.end);*/
                 gettimeofday(&read_tend,NULL);
                 bsearchtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
             }else{
@@ -1311,7 +1098,11 @@ int main(int argc,char ** argv){
                 }
             }else{
                 if(retval>=0){
-                    get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
+                    if(ly==HCURVE){
+                        get_begin_count_countdshape(offs,count,countdshape,hpos,shape,newdshape,bound,dims_size);
+                    }else{
+                        get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
+                    }
                     gettimeofday(&read_tbegin,NULL);
                     if(avg_block_size<=BLOCK_THRESHOLD){
 
@@ -1420,6 +1211,6 @@ int main(int argc,char ** argv){
 /*    fclose(ofp);*/
     gettimeofday(&tend,NULL);
 /*    printf("all time is %fs and scan time is %fs\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000);*/
-    printf("all time is %lfs\nread time is %lfs\ntree index time is %lfs\ndecode time is %lfs\nbsearch time is %lfs\n\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,readtime,indextime,decodetime,bsearchtime);
+    printf("all time is %lfs\nread time is %lfs\ntree index time is %lfs\nrsearch time is %lfs\ndecode time is %lfs\nbsearch time is %lfs\n\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000,readtime,indextime,rsearchtime, decodetime,bsearchtime);
     return 0;
 }

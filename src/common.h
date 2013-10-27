@@ -301,4 +301,225 @@ void flush_batch_buff(char *buff, size_t *offset,size_t maxsize,FILE *ofp){
         fwrite(buff,*offset,1,ofp);
     }
 }
+
+/*
+ * binary search for left bound using in-memory array
+*/
+inline size_t lsearch(const double* data,size_t len,double val,bool equal){
+/*    printf("lsearch\n");*/
+    int lp=0;
+    int rp=len-1;
+    int mid;
+    while(rp>lp){
+        mid=rp-((rp-lp)>>1);
+/*        printf("mid %d\n",mid);*/
+        if(data[mid]>=val)
+            rp=mid-1;
+        else
+            lp=mid;
+/*        printf("lsearch %d %d %d\n",lp,mid ,rp);*/
+    }
+/*    printf("rp %d val %lf\n",rp,data[rp].val);*/
+    double tmp=data[lp];
+    if(lp==0){
+        if(equal&&tmp==val){
+            return 0;
+        }
+        if(val<tmp)
+            return 0;
+    }
+    int i;
+/*    printf("%f\n",data[lp]);*/
+    for(i=lp+1;i<len;i++){
+        if(data[i]>tmp){
+            if(data[i]==val){
+               if(equal){
+                    return i;
+               }else{
+                    tmp=data[i];
+                    while(i<len){
+                        if(data[i]>tmp){
+                            return i;
+                        }
+                        i++;
+                    }
+                    return -1;
+               }
+            }else{
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+/*
+ * binary search for right bound using in-memory array
+*/
+inline size_t rsearch(const double* data,size_t len,double val,bool equal){
+/*    printf("rsearch\n");*/
+    int lp=0;
+    int rp=len-1;
+    int mid;
+    while(rp>lp){
+        mid=lp+((rp-lp)>>1);
+        if(data[mid]>val)
+            rp=mid;
+        else
+            lp=mid+1;
+    }
+    double tmp=data[rp];
+    if(rp==len-1){
+        if(equal&&tmp==val){
+            return rp;
+        }
+        if(val>tmp){
+            return rp;
+        }
+    }
+    int i;
+    for(i=rp-1;i>=0;i--){
+        if(data[i]<tmp){
+            if(data[i]==val){
+               if(equal){
+                    return i;
+               }else{
+                    tmp=data[i];
+                    while(i>=0){
+                        if(data[i]<tmp){
+                            return i;
+                        }
+                        i--;
+                    }
+                    return -1;
+               }
+            }else{
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+/*
+ * reverse binary search for left bound using in-memory array
+*/
+inline size_t reverse_lsearch(const double* data,size_t len,double val,bool equal){
+/*    printf("lsearch\n");*/
+    int lp=0;
+    int rp=len-1;
+    int mid;
+    while(rp>lp){
+        mid=rp-((rp-lp)>>1);
+/*        printf("mid %d\n",mid);*/
+        if(data[mid]<=val)
+            rp=mid-1;
+        else
+            lp=mid;
+/*        printf("lsearch %d %d %d\n",lp,mid ,rp);*/
+    }
+/*    printf("lp %d val %lf\n",rp,data[lp]);*/
+    double tmp=data[lp];
+    if(lp==0){
+        if(equal&&tmp==val){
+            return 0;
+        }
+        if(val>tmp)
+            return 0;
+    }
+    int i;
+/*    printf("%f\n",data[lp]);*/
+    for(i=lp+1;i<len;i++){
+        if(data[i]<tmp){
+            if(data[i]==val){
+               if(equal){
+                    return i;
+               }else{
+                    tmp=data[i];
+                    while(i<len){
+                        if(data[i]<tmp){
+                            return i;
+                        }
+                        i++;
+                    }
+                    return -1;
+               }
+            }else{
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+/*
+ * reverse binary search for right bound using in-memory array
+*/
+inline size_t reverse_rsearch(const double* data,size_t len,double val,bool equal){
+/*    printf("rsearch\n");*/
+    int lp=0;
+    int rp=len-1;
+    int mid;
+    while(rp>lp){
+        mid=lp+((rp-lp)>>1);
+        if(data[mid]<val)
+            rp=mid;
+        else
+            lp=mid+1;
+    }
+    double tmp=data[rp];
+    if(rp==len-1){
+        if(equal&&tmp==val){
+            return rp;
+        }
+        if(val<tmp){
+            return rp;
+        }
+    }
+    int i;
+    for(i=rp-1;i>=0;i--){
+        if(data[i]>tmp){
+            if(data[i]==val){
+               if(equal){
+                    return i;
+               }else{
+                    tmp=data[i];
+                    while(i>=0){
+                        if(data[i]>tmp){
+                            return i;
+                        }
+                        i--;
+                    }
+                    return -1;
+               }
+            }else{
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+/*
+ * binary search using in-memory array
+*/
+inline int binary_search(const double* data,size_t len,double min,double max,bool min_equal,bool max_equal,result * res){
+   if( min>max||(min==max)&&(min_equal!=true||max_equal!=true)){
+      return -1; 
+   }
+   struct timeval tbegin,tend;
+/*   printf("min %lf max %lf len %d\n",min,max,len);*/
+   if(data[len-1]>=data[0]){
+       res->begin=lsearch(data,len,min,min_equal);
+       res->end=rsearch(data,len,max,max_equal);
+   }else{
+       res->begin=reverse_lsearch(data,len,max,max_equal);
+       res->end=reverse_rsearch(data,len,min,min_equal);
+   }
+/*   printf("res %d %d\n",res->begin,res->end);*/
+   if(res->begin!=-1&&res->end!=-1&&res->end>=res->begin){
+
+/*       printf("hit number:%ld\n",res->end-res->begin+1);*/
+/*       printf("begin %lf %lf end %lf %lf\n",data[res->begin-1],data[res->begin],data[res->end],data[res->end+1]);*/
+       return 0;
+   }
+   return -1;
+}
 #endif
