@@ -6,6 +6,7 @@
 #include "common.h"
 #include "rsearch.h"
 #include "mapping.h"
+using namespace std;
 /*typedef enum { false, true } bool;*/
 /*#define BLOCK_THRESHOLD 268435456 //256M*/
 #define BLOCK_THRESHOLD 22268435456 
@@ -24,6 +25,22 @@ typedef struct condition_t{
     bool *valid; 
     int size;
 }cond;
+typedef struct output_cols_t{
+    int size;
+    bool *cols;
+/*    char **cols;*/
+    char *varname;
+    bool emptycol;
+}output_cols;
+void init_output_cols(output_cols *ocols,int size){
+    ocols->size=size;
+    ocols->cols=(bool *)calloc(size,sizeof(bool));
+    for(int i=0;i<size;i++){
+        ocols->cols[i]=false;
+    }
+    ocols->varname=NULL;
+    ocols->emptycol=true;
+};
 LAYOUT ly;
 /*struct timeval rbegin,rend;*/
 /*void init_cond(DIMS dims,){*/
@@ -78,7 +95,7 @@ inline bool check_dim_condition(size_t *idx,size_t *begin,size_t *end,int dims_s
 
     
 /*}*/
-inline void get_begin_count_countdshape(size_t *begin,size_t *count,size_t *countdshape,size_t id,size_t *shape,size_t *newdshape,int *bound,int dims_size){
+inline void get_begin_count_countdshape(size_t *begin,size_t *count,size_t *countdshape,size_t id,size_t *shape,size_t *newdshape,size_t *bound,int dims_size){
 /*    size_t count[dims_size];*/
     size_t idx[dims_size];
     int i;
@@ -144,16 +161,21 @@ int get_row_size(DIMS *dims,int *cols,int cols_size){
     return size;
 }
 void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
+    if(cols_size==0){
+        offset[0]=0;
+        sizes[0]=get_type_size(dims->var_type);
+        return ;
+    }
     int i;
     offset[0]=0;
     sizes[0]=get_type_size(dims->types[cols[0]]);
     for(i=1;i<cols_size;i++){
         sizes[i]=get_type_size(dims->types[cols[i]]);
-        offset[i]=offset[i-1]+sizes[i]; 
+        offset[i]=offset[i-1]+sizes[i-1]; 
     }
     sizes[cols_size]=get_type_size(dims->var_type);
-    if(cols_size>1)
-        offset[cols_size]=offset[cols_size-1]+get_type_size(dims->var_type);
+    offset[cols_size]=offset[cols_size-1]+sizes[cols_size-1];
+        
 }
 
 /*inline void to_batch_buff(void * buff,size_t *offset,size_t maxsize,void *src, size_t len,FILE *ofp){*/
@@ -176,7 +198,7 @@ void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
 /*    }*/
 /*}*/
 inline void write_to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesizes,int *offsets,void *val,int vsize,char * buf,size_t * boffset,FILE *ofp){
-    int j;
+    int j=0;
     for(j=0;j<col_size;j++){
         to_batch_buff(buf+offsets[j],boffset,BATCH_BUFF_SIZE,(char*)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j],typesizes[j],ofp);
 /*        memcpy((char*)(buf+offsets[j]),(char*)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j],typesizes[j]);*/
@@ -185,7 +207,7 @@ inline void write_to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *ty
 /*    memcpy((char*)(buf+offsets[j]),val,vsize);*/
 }
 inline void print_to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesizes,void *val,char * buf){
-    int j;
+    int j=0;
     int buf_pos=0;
     for(j=0;j<col_size;j++){
         print_to_buf(buf+buf_pos,dims->types[cols[j]],(char *)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j]); 
@@ -277,7 +299,7 @@ inline void read_from_ibuff(void *ibuff,size_t i,block_info * binfo,char *iread_
 
 }
 
-int block_query(std::set<int> &dblocks,size_t*begins, size_t*ends,size_t *shape,int *bound,int dims_size){
+int block_query(std::set<int> &dblocks,size_t*begins, size_t*ends,size_t *shape,size_t *bound,int dims_size){
 
     int head[dims_size];  
     size_t newshape[dims_size];
@@ -346,123 +368,6 @@ int block_query(std::set<int> &dblocks,size_t*begins, size_t*ends,size_t *shape,
     free(h.hcode);
     free(pt.hcode);
     free(g_mask);
-    return 0;
-}
-inline 
-int scan(result *cres,result *res,FILE *vfp,FILE *ifp,DIMS *dims,int *cols,int cols_size,FILE *ofp,MODE m){ 
-    struct timeval tbegin,tend;
-    struct timeval obegin, oend;
-    if(cres->begin>cres->end)
-        return -1;
-    size_t i;
-    int size=sizeof(cnode);
-    int idx_size=sizeof(size_t);
-    gettimeofday(&tbegin,NULL);
-    cnode *data=(cnode*)calloc(cres->end-cres->begin+1,sizeof(cnode));
-    size_t *idx_data=(size_t *)calloc(res->end-res->begin+1,sizeof(size_t));
-    gettimeofday(&tend,NULL);
-/*    printf("time for read buffer is %f\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000);  */
-      
-    double readtime=0;
-    double wtime=0;
-     
-    gettimeofday(&tbegin,NULL);
-    fseek(vfp,size*cres->begin,SEEK_SET);
-    fread(data,size,cres->end-cres->begin+1,vfp);
-    fseek(ifp,idx_size*res->begin,SEEK_SET);
-    fread(idx_data,idx_size,res->end-res->begin+1,ifp);
-    gettimeofday(&tend,NULL);
-    readtime=tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000;  
-    int k;
-    if(m==TEXT){
-        if(cols==NULL||cols_size==0){
-            for(i=0;i<res->end-res->begin+1;i++){
-                for(k=0;k<data[i].repeat;k++){
-                    fprintf(ofp,"%f\n",data[i].val);
-                }
-            }
-        }else{
-            size_t dshape[dims->dims_size];
-            size_t idx[dims->dims_size];
-            get_dshape(dshape,dims->shape,dims->dims_size);
-            int *offsets=(int *)calloc(cols_size+1,sizeof(int));
-
-            int j;
-            int *typesizes=(int *)calloc(cols_size+1,sizeof(int));
-            get_offsets(offsets,typesizes,dims,cols,cols_size);
-            int row_size=get_row_size(dims,cols,cols_size);
-            int buf_size=row_size*10;
-            char *buf=(char *)calloc(buf_size,sizeof(char));
-            int buf_pos=0;
-            for(i=0;i<cres->end-cres->begin+1;i++){
-    /*            printf("before idx %d\n",data[i].idx);*/
-                for(k=0;k<data[i].repeat;k++){
-                    get_idx(idx,idx_data[data[i].idx+k-res->begin],dshape,dims->dims_size); 
-        /*            printf("after idx %d\n",check_index(idx,dims->shape,dims->dims_size));*/
-                    for(j=0;j<cols_size;j++){
-                        print_to_buf(buf+buf_pos,dims->types[cols[j]],(char *)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j]); 
-                        buf_pos=strlen(buf);
-                    }
-                    print_to_buf(buf+buf_pos,dims->var_type,&(data[i].val));
-                    buf[strlen(buf)-1]='\n';
-                    
-                    fwrite(buf,1,strlen(buf),ofp);
-                    bzero(buf,buf_size);
-                    buf_pos=0;
-                }
-            }
-            free(buf);
-            free(offsets);
-            free(typesizes);
-        }
-    }else{
-        int var_size=get_type_size(dims->var_type);
-        if(cols==NULL||cols_size==0){
-            for(i=0;i<cres->end-cres->begin+1;i++){
-                for(k=0;k<data[i].repeat;k++){
-                    fwrite(&(data[i].val),var_size,1,ofp);
-                }
-            }
-        }else{
-            size_t dshape[dims->dims_size];
-            size_t idx[dims->dims_size];
-            get_dshape(dshape,dims->shape,dims->dims_size);
-            int *offsets=(int *)calloc(cols_size+1,sizeof(int));
-            int j;
-            int *typesizes=(int *)calloc(cols_size+1,sizeof(int));
-            get_offsets(offsets,typesizes,dims,cols,cols_size);
-            int row_size=get_row_size(dims,cols,cols_size);
-            char *buf=(char *)calloc(row_size+10,sizeof(char));
-            gettimeofday(&obegin,NULL);
-            for(i=0;i<cres->end-cres->begin+1;i++){
-                for(k=0;k<data[i].repeat;k++){
-/*                gettimeofday(&tbegin,NULL);*/
-                get_idx(idx,idx_data[data[i].idx+k-res->begin],dshape,dims->dims_size); 
-/*                gettimeofday(&tend,NULL);*/
-/*                idxtime+=tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000;*/
-                for(j=0;j<cols_size;j++){
-
-                    memcpy((char*)(buf+offsets[j]),(char*)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j],typesizes[j]);
-    /*                fprintf(ofp,"%lf,",((double*)(dims->dimvals[cols[j]]))[idx[cols[j]]]);*/
-                }
-    /*            fprintf(ofp,"%lf\n",data[i].val); */
-                memcpy((char*)(buf+offsets[j]),&(data[i].val),typesizes[j]);
-/*                fwrite(buf,1,row_size,ofp);*/
-                }
-            }
-            gettimeofday(&oend,NULL);
-            wtime=oend.tv_sec-obegin.tv_sec+1.0*(oend.tv_usec-obegin.tv_usec)/1000000;
-            printf("write time is %f and read time is %f\n",wtime,readtime);
-            free(buf);
-            free(offsets);
-            free(typesizes);
-        }
-    
-    }
-    free(data);
-    free(idx_data);
-    gettimeofday(&tend,NULL);
-    printf("scan time is %fs\n",tend.tv_sec-tbegin.tv_sec+1.0*(tend.tv_usec-tbegin.tv_usec)/1000000);
     return 0;
 }
 void print_res(FILE *fp){
@@ -690,7 +595,6 @@ int main(int argc,char ** argv){
     gettimeofday(&tbegin,NULL);
 /*    int X_LIMIT;*/
 /*    sscanf(argv[1],"%d",&X_LIMIT);*/
-    bool need_scan=false;
     double min=DBL_MIN;
     double max=DBL_MAX;
     bool min_equal=true;
@@ -707,7 +611,7 @@ int main(int argc,char ** argv){
 
 /*    node* data=(node*)calloc(sizeof(node),X_LIMIT*Y*Z);*/
     if(argc<3){
-        printf("Usage :%s array_file -d dim_name \"[dmin,dmax]\" -v var_name \"[vmin,vmax]\" -o output_file\n",argv[0]);
+        printf("Usage :%s array_file -d dim_name \"[dmin,dmax]\" -v var_name \"[vmin,vmax]\" -o dim1,dim2,varname output_file\n",argv[0]);
         printf("\tYou can give zero or several dimension ranges\n");
         printf("\tYou can use %s array_file *. to scan all the array\n",argv[0]);
         printf("\tIf -o and output_file is not specified, then the program only print the hit number\n");
@@ -734,8 +638,8 @@ int main(int argc,char ** argv){
     char tempname[128]={0};
     char outputname[256]={0};
     char **dnames=(char **)calloc(dims_size,sizeof(char *));
-    size_t *shape=(size_t *)calloc(dims_size,sizeof(size_t *));
-    int *bound=(int *)calloc(dims_size,sizeof(int *));
+    size_t *shape=(size_t *)calloc(dims_size,sizeof(size_t));
+    size_t *bound=(size_t *)calloc(dims_size,sizeof(size_t));
     TYPE *types=(TYPE *)calloc(dims_size,sizeof(TYPE));
     TYPE var_type;
     fgets(line,sizeof(line),mfp);
@@ -760,14 +664,19 @@ int main(int argc,char ** argv){
     }else if(!strcmp(tempname,"hcurve")){
         ly=HCURVE;
     }
+    MODE m=BINARY;
     /* parse the bmeta file end!*/ 
 
     /*parse the input arguments start!*/
     cond conds;
+    output_cols ocols;
     bool has_dim_condition=false;
     bool has_var_condition=false;
+    bool need_output=false;
+    bool need_dims=false;
     bool no_tree_index=false;
     init_conditions(&conds,dims_size);
+    init_output_cols(&ocols,dims_size);
     for(i=2;i<argc;i=i+1){
         if(strcmp(argv[i],"-d")==0){
             for(j=0;j<dims_size;j++){
@@ -790,14 +699,45 @@ int main(int argc,char ** argv){
             i+=2;
         }
         if(strcmp(argv[i],"-o")==0){
-            strcpy(outputname,argv[i+1]);
+            if(i+2<argc){
+                char *p;
+                char *cstr=NULL;
+                cstr=(char *)calloc(1,strlen(argv[i+1])+1);
+                strcpy(cstr,argv[i+1]);
+                p = strtok(cstr,",");
+                while(p!=NULL)
+                {
+/*                    res.push_back(p);*/
+                    if(strcmp(p,varname)==0){
+                        ocols.varname=(char *)calloc(1,strlen(varname)+1);
+                        strcpy(ocols.varname,varname);
+                    }else{
+                        for(int s=0;s<dims_size;s++){
+                           if(strcmp(dnames[s],p)==0){
+                              ocols.cols[s]=true;  
+                              ocols.emptycol=false;
+                           }  
+                        }
+                    }
+                    p = strtok(NULL,",");
+                }
+                if(cstr!=NULL)
+                    free(cstr);
+                strcpy(outputname,argv[i+2]);
+            if((ocols.emptycol==false||ocols.varname!=NULL)&&strlen(outputname)>0)
+                need_output=true;
+            }
         }
         if(strcmp(argv[i],"-nt")==0){
            no_tree_index=true; 
         }
+        if(strcmp(argv[i],"-mt")==0){
+            m=TEXT;
+        }
     }
-    if(strlen(outputname)>0)
-        need_scan=true;
+    if(has_dim_condition||ocols.emptycol==false){
+       need_dims=true; 
+    }
     /*parse the input arguments start!*/
 
 /*   parse_condition(argv[2],&min,&min_equal,&max,&max_equal); */
@@ -874,7 +814,7 @@ int main(int argc,char ** argv){
     DIMS dims;
     FILE **fps;
     char tname[256]={0};
-    if(has_dim_condition||need_scan){
+    if(need_dims){
         fps=(FILE **)calloc(dims_size,sizeof(FILE*));
         for(i=0;i<dims_size;i++){
             fps[i]=fopen(dnames[i],"r");
@@ -887,6 +827,8 @@ int main(int argc,char ** argv){
         for(i=0;i<dims_size;i++){
             fclose(fps[i]);
         }
+    }else{
+        init_dims(&dims,dims_size,shape,types,var_type,NULL);
     }
     if(has_dim_condition){
         set_begin_end(dbegins,dends,dims,conds);
@@ -904,17 +846,21 @@ int main(int argc,char ** argv){
         printf("dset size %d\n",(*dset).size());
     }
     if(vset==NULL&&dset==NULL){
-        if(strcmp(argv[2],"*")==0){
+/*        printf("argv[2] %s\n",argv[0]);*/
+        if(strcmp(argv[2],"-a")==0){
             dset=new std::set<int>();
-            for(i=0;i<block_num;i++){
-                dset->insert(i);
+            for(i=0;i<dims_size;i++){
                 dbegins[i]=0;
                 dends[i]=shape[i]-1;
             }
+            for(i=0;i<block_num;i++){
+                dset->insert(i);
+            }
+            fset=dset;
             /*to do scan all data*/
 /*            set_begin_end(dbegins,dends,dims,conds);*/
         }else{
-            printf("Please specify a condition or use %s %s * to scan all data\n",argv[0],argv[1]);
+            printf("Please specify a condition or use %s %s -a to scan all data\n",argv[0],argv[1]);
             return 0;
         }
     }else if(vset==NULL){
@@ -968,21 +914,26 @@ int main(int argc,char ** argv){
 /*    window_size=1;*/
     /*init output_pos more to do*/
 /*    MODE m=TEXT;*/
-    MODE m=BINARY;
+/*    MODE m=BINARY;*/
     FILE *ofp=fopen(outputname,"w");
     int dsizes[dims_size];
     int cols[dims_size];
     int typesizes[dims_size];
     int offsets[dims_size];
-    int col_size=dims_size;
-    int row_size,row_buf_size;
+    int col_size=0;
+    int row_size=0,row_buf_size;
     char *row_buff;
     char *batch_buff;
     size_t batch_offset=0;
-    if(need_scan){
+    if(need_output){
         for(i=0;i<dims_size;i++){
-            cols[i]=i;      
+            if(ocols.cols[i]==true){
+                cols[col_size++]=i;
+            }
         }
+/*        for(i=0;i<dims_size;i++){*/
+/*            cols[i]=i;      */
+/*        }*/
         get_offsets(offsets,typesizes,&dims,cols,col_size);
         row_size=get_row_size(&dims,cols,col_size);
         row_buf_size=row_size*10;
@@ -1019,24 +970,32 @@ int main(int argc,char ** argv){
                 gettimeofday(&read_tbegin,NULL);
                 if(window_size>0){
                     read_from_buff(&buff,i,binfo,read_buff,fp,vsize,window_size,block_num,all_size);
-                    read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
+                    if(need_dims){
+                        read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
+                    }
                 }else{
                     if(label!=0){
                         if(i!=pre+1){
                             fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                             fread(buff,vsize,len,fp);
-                            fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                            fread(ibuff,isize,len,ifp);
+                            if(need_dims){
+                                fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                                fread(ibuff,isize,len,ifp);
+                            }
                         }else{
                             fread(buff,vsize,len,fp);
-                            fread(ibuff,isize,len,ifp);
+                            if(need_dims){
+                                fread(ibuff,isize,len,ifp);
+                            }
                         }
                         pre=i;
                     }else{
                         fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                         fread(buff,vsize,len,fp);
-                        fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                        fread(ibuff,isize,len,ifp);
+                        if(need_dims){
+                            fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                            fread(ibuff,isize,len,ifp);
+                        }
                         pre=i; 
                     }
                 }
@@ -1077,7 +1036,7 @@ int main(int argc,char ** argv){
 /*                        fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);*/
 /*                        gettimeofday(&read_tend,NULL);*/
 /*                        readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;*/
-                    if(need_scan){
+                    if(need_output){
                         get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
                         gettimeofday(&read_tbegin,NULL);
                         if(avg_block_size<=BLOCK_THRESHOLD){
@@ -1085,8 +1044,10 @@ int main(int argc,char ** argv){
                         }else{
                             fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);
                             fread(buff+res.begin,vsize,res.end-res.begin+1,fp);
-                            fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
-                            fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);
+                            if(need_dims){
+                                fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
+                                fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);
+                            }
                         }
                         gettimeofday(&read_tend,NULL);
                         readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
@@ -1109,15 +1070,17 @@ int main(int argc,char ** argv){
                     }else{
                         fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);
                         fread(buff+res.begin,vsize,res.end-res.begin+1,fp);
-                        fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
-                        fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);
+                        if(need_dims){
+                            fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
+                            fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);
+                        }
                     }
                     gettimeofday(&read_tend,NULL);
                     readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
                     for(j=0;j<res.end-res.begin+1;j++){
                         get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
                         if(check_dim_condition(idx,dbegins,dends,dims_size)){
-                            if(need_scan){
+                            if(need_output){
                                 to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[res.begin+j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
                             }
                             hits++;
@@ -1165,7 +1128,7 @@ int main(int argc,char ** argv){
             if(contained){
 /*                hits+=count[0]*countdshape[dims_size-1];*/
                 hits+=len;
-                if(need_scan){
+                if(need_output){
                     for(j=0;j<len;j++){
                         get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
                         to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
@@ -1176,7 +1139,7 @@ int main(int argc,char ** argv){
                 for(j=0;j<len;j++){
                     get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
                     if(check_dim_condition(idx,dbegins,dends,dims_size)){
-                        if(need_scan){
+                        if(need_output){
                             to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
                         }
                         hits++;
@@ -1192,7 +1155,7 @@ int main(int argc,char ** argv){
 /*        phits=phits*(dends[i]-dbegins[i]+1);*/
 /*    }*/
     printf("hits %d\n",hits);
-    if(need_scan){
+    if(need_output){
         flush_batch_buff(batch_buff, &batch_offset,BATCH_BUFF_SIZE,ofp);
         fclose(ofp);
     }

@@ -32,7 +32,7 @@ char *get_type_name(nc_type type){
     }
     return "unknown";
 }
-void nbound(int *bound,int n,int size){
+void nbound(size_t *bound,int n,int size){
     int i;
     for(i=0;i<size;i++){
         bound[i]=n;
@@ -207,7 +207,7 @@ int main(int argc, char ** argv){
    size_t *newshape=(size_t *)calloc(dims_size,sizeof(size_t));
    size_t *newdshape=(size_t *)calloc(dims_size,sizeof(size_t));
    size_t *newidx=(size_t *)calloc(dims_size,sizeof(size_t));
-   int *bound=(int *)calloc(dims_size,sizeof(int));
+   size_t *bound=(size_t *)calloc(dims_size,sizeof(size_t));
    nbound(bound,n,dims_size);
    get_new_shape(newshape,bound,dsizes,dims_size);
    for(i=0;i<dims_size;i++){

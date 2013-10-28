@@ -89,7 +89,8 @@ void init_dims(DIMS* dims,int dims_size,size_t *shape,TYPE * types, TYPE var_typ
    for(i=0;i<dims_size;i++){
        dims->shape[i]=shape[i];
        dims->types[i]=types[i];
-       read_dim(fps[i],&(dims->dimvals[i]),types[i],shape[i]);
+       if(fps!=NULL)
+           read_dim(fps[i],&(dims->dimvals[i]),types[i],shape[i]);
 /*       print_dim(dims->dimvals[i],types[i],shape[i]);*/
    }
 }
@@ -184,7 +185,7 @@ int get_nctype_size(nc_type  type){
     }
     return -1;
 }
-size_t get_block_size(int *bound,size_t *shape,int size){
+size_t get_block_size(size_t *bound,size_t *shape,int size){
     size_t len=1;
     int i;
     for(i=0;i<size;i++){
@@ -192,7 +193,7 @@ size_t get_block_size(int *bound,size_t *shape,int size){
     }
     return len;
 }
-size_t get_max_block_size(int *bound,size_t *shape,int size){
+size_t get_max_block_size(size_t *bound,size_t *shape,int size){
     size_t len=1;
     int i;
     for(i=0;i<size;i++){
@@ -201,7 +202,7 @@ size_t get_max_block_size(int *bound,size_t *shape,int size){
 //    printf("max_block_size %d\n",len);
     return len;
 }
-void get_new_shape(size_t *newshape,int *bound,size_t *shape,int size){
+void get_new_shape(size_t *newshape,size_t *bound,size_t *shape,int size){
     int i;
     for(i=0;i<size;i++){
         if(shape[i]>=bound[i]){
@@ -213,7 +214,7 @@ void get_new_shape(size_t *newshape,int *bound,size_t *shape,int size){
     }
     
 }
-inline void get_start_count(size_t *start,size_t *count,size_t *newidx,size_t *newshape,int *bound,size_t *shape,int size){
+inline void get_start_count(size_t *start,size_t *count,size_t *newidx,size_t *newshape,size_t *bound,size_t *shape,int size){
    int i,len;
    for(i=0;i<size;i++){
        len=shape[i]/bound[i];
