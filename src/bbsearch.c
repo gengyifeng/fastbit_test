@@ -11,11 +11,11 @@ using namespace std;
 /*#define BLOCK_THRESHOLD 268435456 //256M*/
 #define BLOCK_THRESHOLD 22268435456 
 /*#define BLOCK_THRESHOLD 1 */
-#define BATCH_BUFF_SIZE 16777216 //16M
-#define READ_BUFF_SIZE 16777216 //16M
+#define READ_BUFF_SIZE 1
+/*#define READ_BUFF_SIZE 16777216 //16M*/
+#define WRITE_BUFF_SIZE 16777216 //16M
 /*#define READ_BUFF_SIZE 8388608 //8M*/
 /*#define READ_BUFF_SIZE 262144 //256K*/
-/*#define READ_BUFF_SIZE 1*/
 /*#define BLOCK_THRESHOLD 1*/
 typedef struct condition_t{
     double *min;
@@ -200,10 +200,10 @@ void get_offsets(int *offset,int *sizes,DIMS *dims,int *cols,int cols_size){
 inline void write_to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesizes,int *offsets,void *val,int vsize,char * buf,size_t * boffset,FILE *ofp){
     int j=0;
     for(j=0;j<col_size;j++){
-        to_batch_buff(buf+offsets[j],boffset,BATCH_BUFF_SIZE,(char*)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j],typesizes[j],ofp);
+        to_batch_buff(buf+offsets[j],boffset,WRITE_BUFF_SIZE,(char*)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j],typesizes[j],ofp);
 /*        memcpy((char*)(buf+offsets[j]),(char*)dims->dimvals[cols[j]]+idx[cols[j]]*typesizes[j],typesizes[j]);*/
     }
-    to_batch_buff(buf+offsets[j],boffset,BATCH_BUFF_SIZE,(char*)val,typesizes[j],ofp);
+    to_batch_buff(buf+offsets[j],boffset,WRITE_BUFF_SIZE,(char*)val,typesizes[j],ofp);
 /*    memcpy((char*)(buf+offsets[j]),val,vsize);*/
 }
 inline void print_to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesizes,void *val,char * buf){
@@ -225,7 +225,7 @@ inline void to_buff(DIMS *dims,int *cols, int col_size,size_t *idx,int *typesize
         print_to_buff(dims,cols,col_size,idx,typesizes,val,rbuf);
         int len=strlen(rbuf);
         rbuf[len-1]='\n';
-        to_batch_buff(buf,boffset,BATCH_BUFF_SIZE,rbuf,len,ofp);
+        to_batch_buff(buf,boffset,WRITE_BUFF_SIZE,rbuf,len,ofp);
         
 /*        fwrite(buf,1,strlen(buf),ofp);*/
     
@@ -938,7 +938,7 @@ int main(int argc,char ** argv){
         row_size=get_row_size(&dims,cols,col_size);
         row_buf_size=row_size*10;
         row_buff=(char *)calloc(row_buf_size,sizeof(char));
-        batch_buff=(char *)calloc(BATCH_BUFF_SIZE,sizeof(char));
+        batch_buff=(char *)calloc(WRITE_BUFF_SIZE,sizeof(char));
     }
     int hpos;
     for(std::set<int>::iterator iter=fset->begin();iter!=fset->end();iter++){
@@ -1052,7 +1052,8 @@ int main(int argc,char ** argv){
                         gettimeofday(&read_tend,NULL);
                         readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
                         for(j=0;j<res.end-res.begin+1;j++){
-                            get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
+                            if(need_dims)
+                                get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
                             to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[res.begin+j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
                         }
                     }
@@ -1078,8 +1079,15 @@ int main(int argc,char ** argv){
                     gettimeofday(&read_tend,NULL);
                     readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
                     for(j=0;j<res.end-res.begin+1;j++){
-                        get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
-                        if(check_dim_condition(idx,dbegins,dends,dims_size)){
+                        if(need_dims){
+                            get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
+                            if(check_dim_condition(idx,dbegins,dends,dims_size)){
+                                if(need_output){
+                                    to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[res.begin+j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
+                                }
+                                hits++;
+                            }
+                        }else{
                             if(need_output){
                                 to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[res.begin+j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
                             }
@@ -1093,24 +1101,30 @@ int main(int argc,char ** argv){
             gettimeofday(&read_tbegin,NULL);
             if(window_size>0){
                 read_from_buff(&buff,i,binfo,read_buff,fp,vsize,window_size,block_num,all_size);
-                read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
+                if(need_dims)
+                    read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
             }else{
                 if(label!=0){
                     if(i!=pre+1){
                         fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                         fread(buff,vsize,len,fp);
-                        fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                        fread(ibuff,isize,len,ifp);
+                        if(need_dims){
+                            fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                            fread(ibuff,isize,len,ifp);
+                        }
                     }else{
                         fread(buff,vsize,len,fp);
-                        fread(ibuff,isize,len,ifp);
+                        if(need_dims)
+                            fread(ibuff,isize,len,ifp);
                     }
                     pre=i;
                 }else{
                     fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                     fread(buff,vsize,len,fp);
-                    fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
-                    fread(ibuff,isize,len,ifp);
+                    if(need_dims){
+                        fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
+                        fread(ibuff,isize,len,ifp);
+                    }
                     pre=i; 
                 }
             }
@@ -1130,15 +1144,23 @@ int main(int argc,char ** argv){
                 hits+=len;
                 if(need_output){
                     for(j=0;j<len;j++){
-                        get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
+                        if(need_dims)
+                            get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
                         to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
                     }
                 }
 /*                printf("contained %d\n",count[0]*countdshape[dims_size-1]);*/
             }else{
                 for(j=0;j<len;j++){
-                    get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
-                    if(check_dim_condition(idx,dbegins,dends,dims_size)){
+                    if(need_dims){
+                        get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
+                        if(check_dim_condition(idx,dbegins,dends,dims_size)){
+                            if(need_output){
+                                to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
+                            }
+                            hits++;
+                        }
+                    }else{
                         if(need_output){
                             to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
                         }
@@ -1156,7 +1178,7 @@ int main(int argc,char ** argv){
 /*    }*/
     printf("hits %d\n",hits);
     if(need_output){
-        flush_batch_buff(batch_buff, &batch_offset,BATCH_BUFF_SIZE,ofp);
+        flush_batch_buff(batch_buff, &batch_offset,WRITE_BUFF_SIZE,ofp);
         fclose(ofp);
     }
     
