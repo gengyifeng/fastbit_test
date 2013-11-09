@@ -236,6 +236,8 @@ int generator(const char* fname,char *dimnames[],char *varname,size_t * shapes,i
         if(i==0){
             if((res=nc_def_dim(ncid,dimnames[i],NC_UNLIMITED,&dimids[i])))
                 BAIL(res);
+/*             if((res=nc_def_dim(ncid,dimnames[i],shapes[i],&dimids[i])))*/
+/*                BAIL(res);*/
         }else{
              if((res=nc_def_dim(ncid,dimnames[i],shapes[i],&dimids[i])))
                 BAIL(res);

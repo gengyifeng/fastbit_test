@@ -674,7 +674,7 @@ int main(int argc,char ** argv){
     bool has_var_condition=false;
     bool need_output=false;
     bool need_dims=false;
-    bool no_tree_index=false;
+    bool no_tree_index=true;
     init_conditions(&conds,dims_size);
     init_output_cols(&ocols,dims_size);
     for(i=2;i<argc;i=i+1){
@@ -728,8 +728,8 @@ int main(int argc,char ** argv){
                 need_output=true;
             }
         }
-        if(strcmp(argv[i],"-nt")==0){
-           no_tree_index=true; 
+        if(strcmp(argv[i],"-wt")==0){
+           no_tree_index=false; 
         }
         if(strcmp(argv[i],"-mt")==0){
             m=TEXT;
@@ -1065,13 +1065,20 @@ int main(int argc,char ** argv){
                     }else{
                         get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
                     }
+                    bool contained=true;
+                    for(j=0;j<dims_size;j++){
+                        if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){
+                            contained=false;
+                            break;
+                        }
+                    }
                     gettimeofday(&read_tbegin,NULL);
                     if(avg_block_size<=BLOCK_THRESHOLD){
 
                     }else{
                         fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);
                         fread(buff+res.begin,vsize,res.end-res.begin+1,fp);
-                        if(need_dims){
+                        if(need_dims&&!contained){
                             fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
                             fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);
                         }
@@ -1079,7 +1086,7 @@ int main(int argc,char ** argv){
                     gettimeofday(&read_tend,NULL);
                     readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
                     for(j=0;j<res.end-res.begin+1;j++){
-                        if(need_dims){
+                        if(need_dims&&!contained){
                             get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
                             if(check_dim_condition(idx,dbegins,dends,dims_size)){
                                 if(need_output){
@@ -1098,6 +1105,18 @@ int main(int argc,char ** argv){
                 }
             }
         }else{ //only with dimensional conditions
+            if(ly==HCURVE){
+                get_begin_count_countdshape(offs,count,countdshape,hpos,shape,newdshape,bound,dims_size);
+            }else{
+                get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
+            }
+            bool contained=true;
+            for(j=0;j<dims_size;j++){
+                if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){
+                    contained=false;
+                    break;
+                }
+            }
             gettimeofday(&read_tbegin,NULL);
             if(window_size>0){
                 read_from_buff(&buff,i,binfo,read_buff,fp,vsize,window_size,block_num,all_size);
@@ -1108,20 +1127,20 @@ int main(int argc,char ** argv){
                     if(i!=pre+1){
                         fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                         fread(buff,vsize,len,fp);
-                        if(need_dims){
+                        if(need_dims&&!contained){
                             fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
                             fread(ibuff,isize,len,ifp);
                         }
                     }else{
                         fread(buff,vsize,len,fp);
-                        if(need_dims)
+                        if(need_dims&&!contained)
                             fread(ibuff,isize,len,ifp);
                     }
                     pre=i;
                 }else{
                     fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                     fread(buff,vsize,len,fp);
-                    if(need_dims){
+                    if(need_dims&&!contained){
                         fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
                         fread(ibuff,isize,len,ifp);
                     }
@@ -1130,15 +1149,15 @@ int main(int argc,char ** argv){
             }
             gettimeofday(&read_tend,NULL);
             readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
-            get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
+/*            get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);*/
         
-            bool contained=true;
-            for(j=0;j<dims_size;j++){
-                if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){
-                    contained=false;
-                    break;
-                }
-            }
+/*            bool contained=true;*/
+/*            for(j=0;j<dims_size;j++){*/
+/*                if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){*/
+/*                    contained=false;*/
+/*                    break;*/
+/*                }*/
+/*            }*/
             if(contained){
 /*                hits+=count[0]*countdshape[dims_size-1];*/
                 hits+=len;
