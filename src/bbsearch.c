@@ -664,6 +664,14 @@ int main(int argc,char ** argv){
     }else if(!strcmp(tempname,"hcurve")){
         ly=HCURVE;
     }
+    int innerindexsize=0;
+    fgets(line,sizeof(line),mfp);
+    if(strlen(line)>0){
+        sscanf(line,"InnerIndexSize=%d",&innerindexsize);
+    }
+    if(innerindexsize==0){
+        innerindexsize=sizeof(unsigned int);
+    }
     MODE m=BINARY;
     /* parse the bmeta file end!*/ 
 
@@ -873,8 +881,11 @@ int main(int argc,char ** argv){
         printf("fset size %d\n",(*fset).size());
     }
     size_t block_size=get_max_block_size(bound,shape,dims_size);
+    int vsize=get_type_size(var_type);// for value
+    int isize=innerindexsize; // for index value
     double *buff=(double *)calloc(block_size,sizeof(double)); 
-    unsigned int *ibuff=(unsigned int *)calloc(block_size,sizeof(unsigned int)); 
+/*    unsigned int *ibuff=(unsigned int *)calloc(block_size,sizeof(unsigned int)); */
+    char *ibuff=(char *)calloc(block_size,isize); 
     size_t idx[dims_size];
 /*    size_t iidx[dims_size];*/
     size_t count[dims_size];
@@ -883,8 +894,6 @@ int main(int argc,char ** argv){
     result res;
     size_t len;
     size_t hits=0;
-    int vsize=get_type_size(var_type);// for value
-    int isize=sizeof(unsigned int); // for index value
     int label=0;
     int pre=0;
     int retval;
@@ -964,13 +973,26 @@ int main(int argc,char ** argv){
         }else{
             len=all_size-binfo[i].boffset;
         }
+        if(ly==HCURVE){
+            get_begin_count_countdshape(offs,count,countdshape,hpos,shape,newdshape,bound,dims_size);
+        }else{
+            get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
+        }
+        bool contained=true;
+        for(j=0;j<dims_size;j++){
+            if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){
+                contained=false;
+                break;
+            }
+        }
+        size_t tmpi;
         if(vset!=NULL){
             /* read block data*/
             if(avg_block_size<=BLOCK_THRESHOLD){
                 gettimeofday(&read_tbegin,NULL);
                 if(window_size>0){
                     read_from_buff(&buff,i,binfo,read_buff,fp,vsize,window_size,block_num,all_size);
-                    if(need_dims){
+                    if(need_dims&&!contained){
                         read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
                     }
                 }else{
@@ -978,13 +1000,13 @@ int main(int argc,char ** argv){
                         if(i!=pre+1){
                             fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                             fread(buff,vsize,len,fp);
-                            if(need_dims){
+                            if(need_dims&&!contained){
                                 fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
                                 fread(ibuff,isize,len,ifp);
                             }
                         }else{
                             fread(buff,vsize,len,fp);
-                            if(need_dims){
+                            if(need_dims&&!contained){
                                 fread(ibuff,isize,len,ifp);
                             }
                         }
@@ -992,14 +1014,13 @@ int main(int argc,char ** argv){
                     }else{
                         fseek(fp,binfo[i].boffset*vsize,SEEK_SET);
                         fread(buff,vsize,len,fp);
-                        if(need_dims){
+                        if(need_dims&&!contained){
                             fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
                             fread(ibuff,isize,len,ifp);
                         }
                         pre=i; 
                     }
                 }
-/*                read_from_buff(buff,ibuff,i,block_info * binfo,max_window,read_buff,iread_buff,fp,ifp);*/
                 gettimeofday(&read_tend,NULL);
                 readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
                 gettimeofday(&read_tbegin,NULL);
@@ -1044,34 +1065,41 @@ int main(int argc,char ** argv){
                         }else{
                             fseek(fp,(binfo[i].boffset+res.begin)*vsize,SEEK_SET);
                             fread(buff+res.begin,vsize,res.end-res.begin+1,fp);
-                            if(need_dims){
+                            if(!has_dim_condition&&ocols.emptycol==false){
                                 fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
-                                fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);
+/*                                fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);*/
+                                fread(ibuff+res.begin*isize,isize,res.end-res.begin+1,ifp);
                             }
                         }
                         gettimeofday(&read_tend,NULL);
                         readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
                         for(j=0;j<res.end-res.begin+1;j++){
-                            if(need_dims)
-                                get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
+                            if(!has_dim_condition&&ocols.emptycol==false){
+                                if(isize==sizeof(short))
+                                    tmpi=((unsigned short *)ibuff)[j+res.begin];
+                                else
+                                    tmpi=((unsigned int *)ibuff)[j+res.begin];
+/*                                get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);*/
+                                get_idx_in_block(idx,tmpi,countdshape,offs,dims_size);
+                            }
                             to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[res.begin+j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
                         }
                     }
                 }
             }else{
                 if(retval>=0){
-                    if(ly==HCURVE){
-                        get_begin_count_countdshape(offs,count,countdshape,hpos,shape,newdshape,bound,dims_size);
-                    }else{
-                        get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
-                    }
-                    bool contained=true;
-                    for(j=0;j<dims_size;j++){
-                        if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){
-                            contained=false;
-                            break;
-                        }
-                    }
+/*                    if(ly==HCURVE){*/
+/*                        get_begin_count_countdshape(offs,count,countdshape,hpos,shape,newdshape,bound,dims_size);*/
+/*                    }else{*/
+/*                        get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);*/
+/*                    }*/
+/*                    bool contained=true;*/
+/*                    for(j=0;j<dims_size;j++){*/
+/*                        if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){*/
+/*                            contained=false;*/
+/*                            break;*/
+/*                        }*/
+/*                    }*/
                     gettimeofday(&read_tbegin,NULL);
                     if(avg_block_size<=BLOCK_THRESHOLD){
 
@@ -1080,14 +1108,20 @@ int main(int argc,char ** argv){
                         fread(buff+res.begin,vsize,res.end-res.begin+1,fp);
                         if(need_dims&&!contained){
                             fseek(ifp,(binfo[i].boffset+res.begin)*isize,SEEK_SET);
-                            fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);
+                            fread(ibuff+res.begin*isize,isize,res.end-res.begin+1,ifp);
+/*                            fread(ibuff+res.begin,isize,res.end-res.begin+1,ifp);*/
                         }
                     }
                     gettimeofday(&read_tend,NULL);
                     readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
                     for(j=0;j<res.end-res.begin+1;j++){
                         if(need_dims&&!contained){
-                            get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);
+                            if(isize==sizeof(short))
+                                tmpi=((unsigned short *)ibuff)[j+res.begin];
+                            else
+                                tmpi=((unsigned int *)ibuff)[j+res.begin];
+/*                            get_idx_in_block(idx,ibuff[j+res.begin],countdshape,offs,dims_size);*/
+                            get_idx_in_block(idx,tmpi,countdshape,offs,dims_size);
                             if(check_dim_condition(idx,dbegins,dends,dims_size)){
                                 if(need_output){
                                     to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[res.begin+j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
@@ -1105,22 +1139,22 @@ int main(int argc,char ** argv){
                 }
             }
         }else{ //only with dimensional conditions
-            if(ly==HCURVE){
-                get_begin_count_countdshape(offs,count,countdshape,hpos,shape,newdshape,bound,dims_size);
-            }else{
-                get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
-            }
-            bool contained=true;
-            for(j=0;j<dims_size;j++){
-                if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){
-                    contained=false;
-                    break;
-                }
-            }
+/*            if(ly==HCURVE){*/
+/*                get_begin_count_countdshape(offs,count,countdshape,hpos,shape,newdshape,bound,dims_size);*/
+/*            }else{*/
+/*                get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);*/
+/*            }*/
+/*            bool contained=true;*/
+/*            for(j=0;j<dims_size;j++){*/
+/*                if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){*/
+/*                    contained=false;*/
+/*                    break;*/
+/*                }*/
+/*            }*/
             gettimeofday(&read_tbegin,NULL);
             if(window_size>0){
                 read_from_buff(&buff,i,binfo,read_buff,fp,vsize,window_size,block_num,all_size);
-                if(need_dims)
+                if(need_dims&&!contained)
                     read_from_ibuff(&ibuff,i,binfo,iread_buff,ifp,isize,iwindow_size,block_num,all_size);
             }else{
                 if(label!=0){
@@ -1163,8 +1197,13 @@ int main(int argc,char ** argv){
                 hits+=len;
                 if(need_output){
                     for(j=0;j<len;j++){
-                        if(need_dims)
-                            get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
+                        if(need_dims){
+                            if(isize==sizeof(short))
+                                tmpi=((unsigned short *)ibuff)[j];
+                            else
+                                tmpi=((unsigned int *)ibuff)[j];
+                            get_idx_in_block(idx,tmpi,countdshape,offs,dims_size);
+                        }
                         to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
                     }
                 }
@@ -1172,7 +1211,13 @@ int main(int argc,char ** argv){
             }else{
                 for(j=0;j<len;j++){
                     if(need_dims){
-                        get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);
+                        if(isize==sizeof(short))
+                            tmpi=((unsigned short *)ibuff)[j];
+                        else
+                            tmpi=((unsigned int *)ibuff)[j];
+
+/*                        get_idx_in_block(idx,ibuff[j],countdshape,offs,dims_size);*/
+                        get_idx_in_block(idx,tmpi,countdshape,offs,dims_size);
                         if(check_dim_condition(idx,dbegins,dends,dims_size)){
                             if(need_output){
                                 to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);

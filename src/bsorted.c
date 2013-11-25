@@ -262,13 +262,23 @@ int main(int argc, char ** argv){
        fprintf(fp_meta,"Block Arrangement=linear\n");
    if(ly==HCURVE)
        fprintf(fp_meta,"Block Arrangement=hcurve\n");
+   if(block_size>65535){
+       fprintf(fp_meta,"InnerIndexSize=%d\n",sizeof(int));
+   }else{
+       fprintf(fp_meta,"InnerIndexSize=%d\n",sizeof(short));
+   }
    size_t boffset=0;
+   int isize=sizeof(int);
+   if(block_size<=65535){
+       isize=sizeof(short);
+   }
    block_info *binfo=(block_info *)calloc(block_num,sizeof(block_info));
 /*   int max_level=get_max_level(block_num);*/
 /*   int vnodes_size=get_tree_size(block_num);*/
    vnode *vnodes=(vnode *)calloc(block_num,sizeof(vnode));
    double *vals=(double *)calloc(block_size,sizeof(double));
-   unsigned int *idxs =(unsigned int *)calloc(block_size,sizeof(unsigned int));
+/*   unsigned int *idxs =(unsigned int *)calloc(block_size,sizeof(unsigned int));*/
+   char *idxs =(char *)calloc(block_size,isize);
    char *vals_batch_buff=(char *)calloc(WRITE_BUFF_SIZE,sizeof(char));
    char *idxs_batch_buff=(char *)calloc(WRITE_BUFF_SIZE,sizeof(char));
    bool use_batch=true;
@@ -331,10 +341,16 @@ int main(int argc, char ** argv){
        qsort(data,count_size,sizeof(bnode),bcompare);
        gettimeofday(&sort_end,NULL);
        secs+=sort_end.tv_sec-sort_begin.tv_sec+1.0*(sort_end.tv_usec-sort_begin.tv_usec)/1000000;
-
-       for(j=0;j<count_size;j++){
-            idxs[j]=data[j].idx;
-            vals[j]=data[j].val; 
+       if(isize==sizeof(int)){
+           for(j=0;j<count_size;j++){
+                ((unsigned int *)idxs)[j]=data[j].idx;
+                vals[j]=data[j].val; 
+           }
+       }else{
+           for(j=0;j<count_size;j++){
+                ((unsigned short *)idxs)[j]=(unsigned short)data[j].idx;
+                vals[j]=data[j].val; 
+           }
        }
        binfo[i].boffset=boffset;
        binfo[i].min=data[0].val;
@@ -346,9 +362,9 @@ int main(int argc, char ** argv){
 /*       fwrite(&boffset,sizeof(size_t),1,fp_boffset);*/
        gettimeofday(&sort_begin,NULL);
        if(iuse_batch){
-            to_batch_buff(idxs_batch_buff,&ioff,WRITE_BUFF_SIZE,idxs,sizeof(unsigned int)*count_size,fp_idx);
+            to_batch_buff(idxs_batch_buff,&ioff,WRITE_BUFF_SIZE,idxs,isize*count_size,fp_idx);
        }else{
-           fwrite(idxs,sizeof(unsigned int),count_size,fp_idx);
+           fwrite(idxs,isize,count_size,fp_idx);
        }
 /*       if(i==0)*/
 /*           printf("test %d %lf\n",idxs[0],vals[0]);*/

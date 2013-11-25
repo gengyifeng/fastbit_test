@@ -228,16 +228,18 @@ int generator(const char* fname,char *dimnames[],char *varname,size_t * shapes,i
 /*    double min=0;*/
 /*    double max=coverage;*/
 /*    TYPE types[3]={DOUBLE,DOUBLE,DOUBLE};*/
-    if((res=nc_create(fname,NC_CLOBBER|NC_64BIT_OFFSET,&ncid)))
+/*    if((res=nc_create(fname,NC_CLOBBER|NC_64BIT_OFFSET,&ncid)))*/
+/*        BAIL(res);*/
+    if((res=nc_create(fname,NC_CLASSIC_MODEL|NC_NETCDF4,&ncid)))
         BAIL(res);
 /*    if((res=nc_def_dim(ncid,"d1",dims.shape[0],&dimids[0])))*/
 /*        BAIL(res);*/
     for(i=0;i<dim_size;i++){
         if(i==0){
-            if((res=nc_def_dim(ncid,dimnames[i],NC_UNLIMITED,&dimids[i])))
-                BAIL(res);
-/*             if((res=nc_def_dim(ncid,dimnames[i],shapes[i],&dimids[i])))*/
+/*            if((res=nc_def_dim(ncid,dimnames[i],NC_UNLIMITED,&dimids[i])))*/
 /*                BAIL(res);*/
+             if((res=nc_def_dim(ncid,dimnames[i],shapes[i],&dimids[i])))
+                BAIL(res);
         }else{
              if((res=nc_def_dim(ncid,dimnames[i],shapes[i],&dimids[i])))
                 BAIL(res);
