@@ -9,8 +9,35 @@
     return e;\
 } while(0)
 
-typedef enum {RANDOM, LOCALITY} GMODE;
+typedef enum {RANDOM, LOCALITY,FIXED} GMODE;
 GMODE gm;
+int fixsize;
+
+inline void fixed(void *res,int fixsize,TYPE type){
+   double f=1.0*(rand()%fixsize)/fixsize;
+   switch(type){
+        case(BYTE):
+           *(unsigned char*)res=(unsigned char)(f);
+           break;
+        case(SHORT):
+           *(short*)res=(short)(f);
+           break;
+        case(INT):
+           *(int*)res=(int)(f);
+           break;
+        case(LONG):
+           *(long*)res=(long)(f);
+           break;
+        case(FLOAT):
+           *(float*)res=(float)(f);
+           break;
+        case(DOUBLE):
+           *(double*)res=(double)(f);
+           break;
+        default:
+           printf("unknown types in fixed()!\n");
+   }
+}
 inline void random(void *res,double min,double max,TYPE type){
    double f=1.0*rand()/RAND_MAX;
    switch(type){
@@ -204,8 +231,13 @@ inline void init_var(void *data,size_t len,double min, double max,TYPE type){
    int size=get_type_size(type);
    for(i=0;i<len;i++){
        random(((char *)data+i*size),min,max,type);
-/*       getval(((char *)data+i*size),i,type);*/
-/*       *(double *)data=i;*/
+   }
+}
+inline void init_var_fixed(void *data,size_t len,int fixsize,TYPE type){
+   size_t i;
+   int size=get_type_size(type);
+   for(i=0;i<len;i++){
+       fixed(((char *)data+i*size),fixsize,type);
    }
 }
 /*void generator(const char* fname,int * shapes,int *types,int dim_size,TYPE var_type){*/
@@ -291,6 +323,9 @@ int generator(const char* fname,char *dimnames[],char *varname,size_t * shapes,i
 /*            init_var_locality(buffer,total_size/shapes[0],i*(total_size/shapes[0]),var_type);*/
             init_var_locality(buffer,total_size/shapes[0],i,shapes,dshape,dim_size,shift,var_type);
         }
+        if(gm==FIXED){
+            init_var_fixed(buffer,total_size/shapes[0],fixsize,var_type);
+        }
         nc_put_vara(var_type,ncid,vlid,start,count,buffer);
     }
     if((res=nc_close(ncid)))
@@ -300,9 +335,9 @@ int generator(const char* fname,char *dimnames[],char *varname,size_t * shapes,i
 int main(int argc,char *argv[]){
 /*    size_t shapes[3]={60,120,240};*/
 /*    size_t shapes[3]={4096,1024,256};*/
-    size_t shapes[3]={2048,1024,512};
+/*    size_t shapes[3]={2048,1024,512};*/
 /*    size_t shapes[3]={8,8,8};*/
-/*    size_t shapes[3]={1024,512,256};*/
+    size_t shapes[3]={1024,512,256};
     TYPE var_type=DOUBLE;
     TYPE types[3]={DOUBLE,DOUBLE,DOUBLE};
     int dim_size=3;
@@ -320,6 +355,10 @@ int main(int argc,char *argv[]){
         }
         if(strcmp(argv[2],"l")==0){
             gm=LOCALITY;
+        }
+        if(strcmp(argv[2],"f")==0){
+            gm=FIXED;
+            sscanf(argv[3],"%d",&fixsize);
         }
     }
     generator(argv[1],dimnames,varname,shapes,dim_size,types,var_type);   

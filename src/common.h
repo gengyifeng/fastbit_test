@@ -112,27 +112,6 @@ inline void get_dshape(size_t *dshape,size_t *shape,int size){
       dshape[i]=tmp=tmp*shape[size-i];
     } 
 }
-inline void get_idx_in_block(size_t *idx,size_t pos,size_t *dshape,size_t *begin,int size){
-   int i;
-   size_t tmp=pos;
-   for(i=0;i<size;i++){
-       idx[i]=tmp/dshape[size-1-i];
-       tmp=tmp-idx[i]*dshape[size-1-i];
-       idx[i]+=begin[i];
-/*     printf("%d:%d ",dshape[size-1-i],idx[i]);*/
-   }
-/*   printf("\n");*/
-}
-inline void get_idx(size_t *idx,size_t pos,size_t *dshape,int size){
-   int i;
-   size_t tmp=pos;
-   for(i=0;i<size;i++){
-       idx[i]=tmp/dshape[size-1-i];
-       tmp=tmp-idx[i]*dshape[size-1-i];
-/*     printf("%d:%d ",dshape[size-1-i],idx[i]);*/
-   }
-/*   printf("\n");*/
-}
 inline size_t get_index(size_t *idx,size_t *dshape,int size){
    int i;
 //   size_t tmp=pos;
@@ -144,6 +123,32 @@ inline size_t get_index(size_t *idx,size_t *dshape,int size){
 /*       printf("%d:%d ",dshape[size-1-i],idx[i]);*/
    }
    return tmp;
+/*   printf("\n");*/
+}
+inline void get_idx_in_block(size_t *idx,size_t pos,size_t *dshape,size_t *begin,int size){
+   int i;
+   size_t tmp=pos;
+   for(i=0;i<size;i++){
+       idx[i]=tmp/dshape[size-1-i];
+       tmp=tmp-idx[i]*dshape[size-1-i];
+       idx[i]+=begin[i];
+    
+/*     printf("%d:%d ",dshape[size-1-i],idx[i]);*/
+   }
+//   if(idx[0]>=21900){
+//       printf("%d %d %d\n",pos,idx[0],begin[0]);
+//   }
+//   printf("%d %d \n",pos, get_index(idx,dshape,size));
+/*   printf("\n");*/
+}
+inline void get_idx(size_t *idx,size_t pos,size_t *dshape,int size){
+   int i;
+   size_t tmp=pos;
+   for(i=0;i<size;i++){
+       idx[i]=tmp/dshape[size-1-i];
+       tmp=tmp-idx[i]*dshape[size-1-i];
+/*     printf("%d:%d ",dshape[size-1-i],idx[i]);*/
+   }
 /*   printf("\n");*/
 }
 int get_type_size(TYPE type){

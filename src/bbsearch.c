@@ -73,6 +73,7 @@ inline bool check_dim_condition(size_t *idx,size_t *begin,size_t *end,int dims_s
 /*    bool res=true;*/
     for(i=0;i<dims_size;i++){
         if(idx[i]>end[i]||idx[i]<begin[i]){
+/*            printf("%d %d %d %d\n",i,idx[i],begin[i],end[i]);*/
             return false;
         }
     }
@@ -100,7 +101,8 @@ inline void get_begin_count_countdshape(size_t *begin,size_t *count,size_t *coun
     size_t idx[dims_size];
     int i;
     get_idx(idx,id,newdshape,dims_size);
-    
+/*    printf("%d %d\n",id,get_index(idx,newdshape,dims_size));*/
+/*    printf("%d %d %d\n",idx[0],idx[1],idx[2]);*/
     size_t len;
     for(i=0;i<dims_size;i++){
         len=shape[i]/bound[i];
@@ -111,6 +113,7 @@ inline void get_begin_count_countdshape(size_t *begin,size_t *count,size_t *coun
             count[i]=shape[i]-len*(bound[i]-1);
         }
     }
+/*    printf("%d %d %d\n",count[0],count[1],count[2]);*/
     get_dshape(countdshape,count,dims_size);
 }
 /*size_t validate(size_t *idx,DIMS dims,cond c){*/
@@ -310,14 +313,19 @@ int block_query(std::set<int> &dblocks,size_t*begins, size_t*ends,size_t *shape,
     bool headfull[dims_size];
     bool tailfull[dims_size];
     int len[dims_size];
-    int i,j;
+    int i,j,tmp;
     get_new_shape(newshape,bound,shape,dims_size);
     get_dshape(newdshape,newshape,dims_size);
 
     for(i=0;i<dims_size;i++){
         len[i]=shape[i]/bound[i];
         head[i]=begins[i]/len[i];
-        count[i]=ends[i]/len[i]-head[i]+1;
+        if(head[i]>=bound[i]-1)
+            head[i]=bound[i]-1;
+        tmp=ends[i]/len[i];
+        if(tmp>=bound[i]-1)
+            tmp=bound[i]-1;
+        count[i]=tmp-head[i]+1;
 /*        if(begins[i]%len[i]==0){*/
 /*            headfull[i]=true;*/
 /*        }else{*/
@@ -894,7 +902,7 @@ int main(int argc,char ** argv){
     result res;
     size_t len;
     size_t hits=0;
-    int label=0;
+    size_t label=0;
     int pre=0;
     int retval;
     size_t avg_block_size=vsize*get_block_size(bound,shape,dims_size);
@@ -962,6 +970,7 @@ int main(int argc,char ** argv){
             }
             i=*iter;
             hpos=get_index(idx,newdshape,dims_size);
+/*            i=hpos;*/
         }else{
             i=*iter;
         }
@@ -973,6 +982,10 @@ int main(int argc,char ** argv){
         }else{
             len=all_size-binfo[i].boffset;
         }
+/*        if(len!=8208){*/
+/*            printf("pos %d len %d\n",i,len);*/
+/*        }*/
+/*        printf("BLOCK NUM %d\n",block_num);*/
         if(ly==HCURVE){
             get_begin_count_countdshape(offs,count,countdshape,hpos,shape,newdshape,bound,dims_size);
         }else{
@@ -980,7 +993,8 @@ int main(int argc,char ** argv){
         }
         bool contained=true;
         for(j=0;j<dims_size;j++){
-            if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]))){
+            if(!(dbegins[j]<=offs[j]&&dends[j]>=(offs[j]+count[j]-1))){
+/*                printf("%d %d %d %d\n",dbegins[j],offs[j],dends[j],offs[j]+count[j]-1);*/
                 contained=false;
                 break;
             }
@@ -1007,6 +1021,7 @@ int main(int argc,char ** argv){
                         }else{
                             fread(buff,vsize,len,fp);
                             if(need_dims&&!contained){
+                                fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
                                 fread(ibuff,isize,len,ifp);
                             }
                         }
@@ -1058,7 +1073,7 @@ int main(int argc,char ** argv){
 /*                        gettimeofday(&read_tend,NULL);*/
 /*                        readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;*/
                     if(need_output){
-                        get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);
+/*                        get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);*/
                         gettimeofday(&read_tbegin,NULL);
                         if(avg_block_size<=BLOCK_THRESHOLD){
 
@@ -1167,8 +1182,10 @@ int main(int argc,char ** argv){
                         }
                     }else{
                         fread(buff,vsize,len,fp);
-                        if(need_dims&&!contained)
+                        if(need_dims&&!contained){
+                            fseek(ifp,binfo[i].boffset*isize,SEEK_SET);
                             fread(ibuff,isize,len,ifp);
+                        }
                     }
                     pre=i;
                 }else{
@@ -1181,6 +1198,12 @@ int main(int argc,char ** argv){
                     pre=i; 
                 }
             }
+/*                    fseek(fp,binfo[i].boffset*vsize,SEEK_SET);*/
+/*                    fread(buff,vsize,len,fp);*/
+/*                    if(need_dims&&!contained){*/
+/*                        fseek(ifp,binfo[i].boffset*isize,SEEK_SET);*/
+/*                        fread(ibuff,isize,len,ifp);*/
+/*                    }*/
             gettimeofday(&read_tend,NULL);
             readtime+=read_tend.tv_sec-read_tbegin.tv_sec+1.0*(read_tend.tv_usec-read_tbegin.tv_usec)/1000000;
 /*            get_begin_count_countdshape(offs,count,countdshape,i,shape,newdshape,bound,dims_size);*/
@@ -1191,6 +1214,13 @@ int main(int argc,char ** argv){
 /*                    contained=false;*/
 /*                    break;*/
 /*                }*/
+/*            }*/
+/*            printf("len %d\n",len);*/
+/*                    printf("%d %d %d %d %d %d\n",dbegins[0],dbegins[1],dbegins[2],dends[0],dends[1],dends[2]);*/
+/*            if(i==19770){*/
+/*                printf("offset %d first %d last %d",binfo[i].boffset,((unsigned int *)ibuff)[0],((unsigned int *)ibuff)[len-1]);*/
+/*                printf("val first %f val last %f\n",buff[0],buff[len-1]);*/
+/*                exit(1);*/
 /*            }*/
             if(contained){
 /*                hits+=count[0]*countdshape[dims_size-1];*/
@@ -1207,7 +1237,6 @@ int main(int argc,char ** argv){
                         to_buff(&dims,cols, col_size,idx,typesizes,offsets,&(buff[j]),vsize,batch_buff,&batch_offset,row_buff,row_size,ofp,m);
                     }
                 }
-/*                printf("contained %d\n",count[0]*countdshape[dims_size-1]);*/
             }else{
                 for(j=0;j<len;j++){
                     if(need_dims){
@@ -1240,6 +1269,7 @@ int main(int argc,char ** argv){
 /*    for(i=0;i<dims_size;i++){*/
 /*        phits=phits*(dends[i]-dbegins[i]+1);*/
 /*    }*/
+/*    printf("invalid %d\n",invalid);*/
     printf("hits %d\n",hits);
     if(need_output){
         flush_batch_buff(batch_buff, &batch_offset,WRITE_BUFF_SIZE,ofp);

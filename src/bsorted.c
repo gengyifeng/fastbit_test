@@ -302,6 +302,7 @@ int main(int argc, char ** argv){
    for(i=0;i<dims_size;i++){
        g_mask[i]=1<< dims_size-1-i;      
    }
+   printf("BLOCK NUM %d\n",block_num);
    for(i=0;i<block_num;i++){
        if(ly==HCURVE){
            bzero(h.hcode,sizeof(U_int)*dims_size);
@@ -324,7 +325,6 @@ int main(int argc, char ** argv){
 /*           printf("start[%d]=%d\n",j,start[j]);*/
 /*           printf("count[%d]=%d\n",j,count[j]);*/
        }
-/*       printf("count_size %d\n",count_size);*/
        gettimeofday(&sort_begin,NULL);
        if ((retval = nc_get_vara(ncid, varid,start,count,buff,vtype)))
           ERR(retval);
@@ -376,6 +376,8 @@ int main(int argc, char ** argv){
        gettimeofday(&sort_end,NULL);
        writetime+=sort_end.tv_sec-sort_begin.tv_sec+1.0*(sort_end.tv_usec-sort_begin.tv_usec)/1000000;
        boffset+=count_size;
+/*       if(boffset>all_size)*/
+/*           printf("%d %d\n",i,boffset);*/
    }
    gettimeofday(&sort_begin,NULL);
    if(iuse_batch)
