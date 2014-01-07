@@ -9,10 +9,10 @@
 using namespace std;
 /*typedef enum { false, true } bool;*/
 /*#define BLOCK_THRESHOLD 268435456 //256M*/
-#define BLOCK_THRESHOLD 22268435456 
-/*#define BLOCK_THRESHOLD 1 */
-#define READ_BUFF_SIZE 1
-/*#define READ_BUFF_SIZE 16777216 //16M*/
+/*#define BLOCK_THRESHOLD 22268435456 */
+#define BLOCK_THRESHOLD 1 
+/*#define READ_BUFF_SIZE 1*/
+#define READ_BUFF_SIZE 16777216 //16M
 #define WRITE_BUFF_SIZE 16777216 //16M
 /*#define READ_BUFF_SIZE 8388608 //8M*/
 /*#define READ_BUFF_SIZE 262144 //256K*/
